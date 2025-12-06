@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function main() {
@@ -10,7 +11,7 @@ async function main() {
         create: {
             name: 'Proprietária',
             email: 'admin@colorikids.com',
-            password: 'admin', // In a real app, hash this!
+            password: await bcrypt.hash('admin', 10),
             role: 'OWNER',
             shouldChangePassword: true,
         },
