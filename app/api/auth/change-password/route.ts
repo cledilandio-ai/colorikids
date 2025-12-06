@@ -1,33 +1,32 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt"; // Importação para criptografia
+// import bcrypt from "bcrypt"; <-- REMOVER ESTA LINHA
 
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
     try {
-        const { userId, newPassword } = await request.json();
+        const { email, password } = await request.json();
 
-        if (!userId || !newPassword) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-        }
-
-        // --- HASHING IMPLEMENTADO AQUI ---
-        // 1. Gera o hash da nova senha com 10 rounds de salt
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-
-        await prisma.user.update({
-            where: { id: userId },
-            data: {
-                password: hashedPassword, // AGORA SALVA A SENHA CRIPTOGRAFADA
-                shouldChangePassword: false
-            }
+        const user = await prisma.user.findUnique({
+            where: { email },
         });
 
-        return NextResponse.json({ success: true });
+        // ⚠️ Modo Inseguro Temporário: Compara texto puro
+        if (user && user.password === password) {
+            const { password: _, ...userWithoutPassword } = user;
+            return NextResponse.json({
+                success: true,
+                user: {
+                    ...userWithoutPassword,
+                    shouldChangePassword: user.shouldChangePassword
+                }
+            });
+        }
+
+        return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
     } catch (error) {
-        console.error("Change password error:", error);
+        console.error("Login error:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }
