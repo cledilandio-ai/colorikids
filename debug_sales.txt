@@ -1,0 +1,7 @@
+Querying data for today: Thu Dec 04 2025 00:00:00 GMT-0300 (Horário Padrão de Brasília) to Thu Dec 04 2025 23:59:59 GMT-0300 (Horário Padrão de Brasília)
+
+Found 1 registers active today:
+Register ID: 9d403c47-1009-4971-af88-6aa472cf1c49, Status: CLOSED, Opened: Thu Dec 04 2025 17:04:11 GMT-0300 (Horário Padrão de Brasília), Initial: 100, Sales: 609.9300000000001
+
+Total Orders Today (All): 26
+Calculated Total Sales Today: 1115.91

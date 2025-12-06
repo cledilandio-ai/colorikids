@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   // OWNER, SELLER
+  shouldChangePassword Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  basePrice   Float
+  costPrice   Float    @default(0)
+  imageUrl    String?
+  category    String? // Vestido, Conjunto, Blusa, etc.
+  gender      String? // MASCULINO, FEMININO, UNISSEX
+  variants    ProductVariant[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProductVariant {
+  id            String   @id @default(uuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  size          String
+  color         String?
+  stockQuantity Int      @default(0)
+  sku           String?  @unique
+  imageUrl      String?
+  inventoryLogs InventoryLog[]
+  stockMovements StockMovement[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+
+
+model CashRegister {
+  id            String   @id @default(uuid())
+  openedAt      DateTime @default(now())
+  closedAt      DateTime?
+  initialAmount Float
+  finalAmount   Float?
+  retainedAmount Float    @default(0) // Amount kept in drawer for next shift
+  status        String   // OPEN, CLOSED
+  userId        String?  // Who opened/closed
+  orders        Order[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  cpf       String?  @unique
+  email     String?
+  address   String?
+  orders    Order[]
+  receivables AccountReceivable[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id        String   @id @default(uuid())
+  amount    Float
+  method    String   // PIX, CASH, CREDIT, DEBIT, CREDIARIO
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model AccountReceivable {
+  id          String   @id @default(uuid())
+  amount      Float
+  dueDate     DateTime
+  status      String   // PENDING, PAID, OVERDUE
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  customerName  String
+  customerPhone String?
+  total         Float
+  status        String   // PENDING, COMPLETED, CANCELLED
+  type          String   // WEB, POS
+  paymentMethod String?  // DEPRECATED: Use payments relation. Kept for backward compatibility or primary method.
+  items         String   // JSON string of items
+  
+  cashRegisterId String?
+  cashRegister  CashRegister? @relation(fields: [cashRegisterId], references: [id])
+  
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  
+  payments      Payment[]
+  receivables   AccountReceivable[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model StoreConfig {
+  id          Int      @id @default(1)
+  whatsapp    String   @default("5511999999999")
+  whatsappMessage String @default("Olá! Vim pelo site da Colorikids e gostaria de saber mais.")
+  companyName String   @default("Colorikids")
+  cnpj        String?
+  instagram   String?
+  pixKey      String?
+  pixKeyType  String?  // CPF, CNPJ, EMAIL, PHONE, RANDOM
+  featuredImageUrls String? // JSON string ["url1", "url2"]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InventoryLog {
+  id        String   @id @default(uuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  change    Int
+  reason    String
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model StockMovement {
+  id              String         @id @default(uuid())
+  type            String         // IN, OUT
+  quantity        Int
+  costPrice       Float?         // Unit cost at time of movement
+  productVariantId String
+  productVariant  ProductVariant @relation(fields: [productVariantId], references: [id])
+  reason          String?        // "Restock", "Sale", "Correction"
+  createdAt       DateTime       @default(now())
+}
+
+model TreasuryTransaction {
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  type        String   // IN, OUT
+  category    String   // "RESTOCK", "SALES_PDV", "OPERATIONAL", etc.
+  date        DateTime @default(now())
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TransactionCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  type      String   // IN, OUT, BOTH
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

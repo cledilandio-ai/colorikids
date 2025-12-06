@@ -1,0 +1,7 @@
+2025-12-04T20:24:16.935Z - Processing Order 1696ca0a-4049-4216-b547-21df8c83ddd5 - Status: COMPLETED
+2025-12-04T20:24:16.974Z - Items Raw: [{"id":"662cd5b8-1866-43bd-a674-13bba8e82f17","name":"SHORT","price":39.99,"qty":1,"variantId":"3f7f208c-6128-44da-be69-8139eac1edde","variantName":"M - Azul","sku":null}]
+2025-12-04T20:24:16.974Z - Parsed Items Count: 1
+2025-12-04T20:24:16.975Z - Processing Item: {"id":"662cd5b8-1866-43bd-a674-13bba8e82f17","name":"SHORT","price":39.99,"qty":1,"variantId":"3f7f208c-6128-44da-be69-8139eac1edde","variantName":"M - Azul","sku":null}
+2025-12-04T20:24:16.975Z - Updating Variant 3f7f208c-6128-44da-be69-8139eac1edde, decrement: 1
+2025-12-04T20:24:17.031Z - Updated Variant 3f7f208c-6128-44da-be69-8139eac1edde. New Stock: 0
+2025-12-04T20:24:17.063Z - Created InventoryLog for 3f7f208c-6128-44da-be69-8139eac1edde
