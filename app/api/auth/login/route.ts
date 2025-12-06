@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt"; // Importando a biblioteca de segurança
+import bcrypt from "bcryptjs"; // Importando a biblioteca de segurança
 
 const prisma = new PrismaClient();
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
         // 2. Se o usuário não existir, retorna erro imediatamente
         if (!user) {
             console.log("User not found:", email);
-            return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
+            return NextResponse.json({ success: false, error: `Usuário não encontrado: ${email}` }, { status: 401 });
         }
 
         console.log("User found, checking password...");
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
         // 4. Se a senha não bater, retorna erro
         if (!passwordMatch) {
             console.log("Password mismatch for user:", email);
-            return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
+            return NextResponse.json({ success: false, error: "Senha incorreta" }, { status: 401 });
         }
 
         // 5. Se chegou aqui, deu tudo certo! Retorna os dados (sem a senha)
@@ -42,8 +42,8 @@ export async function POST(request: Request) {
             }
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Login error:", error);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return NextResponse.json({ error: `Internal server error: ${error.message}` }, { status: 500 });
     }
 }
