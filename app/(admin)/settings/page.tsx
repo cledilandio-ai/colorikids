@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Save, Trash, Plus } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function SettingsPage() {
     const { whatsapp, whatsappMessage, companyName, cnpj, instagram, pixKey, pixKeyType, featuredImageUrls, refreshSettings } = useSettings();
@@ -86,18 +87,40 @@ export default function SettingsPage() {
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const uploadData = new FormData();
-            uploadData.append("file", file);
             try {
-                const res = await fetch("/api/upload", { method: "POST", body: uploadData });
-                const data = await res.json();
-                if (data.success) {
-                    setFormData(prev => ({
-                        ...prev,
-                        featuredImageUrls: [...prev.featuredImageUrls, data.url]
-                    }));
+                // Check if it is an image
+                if (!file.type.startsWith("image/")) {
+                    alert("Por favor, selecione apenas imagens.");
+                    return;
                 }
-            } catch (err) { console.error(err); }
+
+                const filename = "public/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+
+                const { data, error } = await supabase.storage
+                    .from("uploads")
+                    .upload(filename, file, {
+                        upsert: false
+                    });
+
+                if (error) {
+                    console.error("Erro no upload:", error);
+                    alert("Erro ao fazer upload da imagem.");
+                    return;
+                }
+
+                const { data: publicUrlData } = supabase.storage
+                    .from("uploads")
+                    .getPublicUrl(filename);
+
+                setFormData(prev => ({
+                    ...prev,
+                    featuredImageUrls: [...prev.featuredImageUrls, publicUrlData.publicUrl]
+                }));
+
+            } catch (err) {
+                console.error(err);
+                alert("Erro inesperado no upload.");
+            }
         }
     };
 
