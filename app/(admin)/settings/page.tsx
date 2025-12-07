@@ -355,7 +355,7 @@ export default function SettingsPage() {
                                             <span>Adicionar</span>
                                             <input
                                                 type="file"
-                                                accept="image/*"
+                                                accept="image/jpeg, image/jpg"
                                                 className="hidden"
                                                 onChange={handleImageUpload}
                                             />
