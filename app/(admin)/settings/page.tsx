@@ -104,7 +104,7 @@ export default function SettingsPage() {
 
                 if (error) {
                     console.error("Erro no upload:", error);
-                    alert("Erro ao fazer upload da imagem.");
+                    alert(`Erro ao fazer upload da imagem: ${error.message}`);
                     return;
                 }
 
