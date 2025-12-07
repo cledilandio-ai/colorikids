@@ -262,7 +262,12 @@ export default function NewProductPage() {
                                                                     return;
                                                                 }
 
-                                                                const filename = "public/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+                                                                const sanitizedFileName = file.name
+                                                                    .normalize('NFD') // Decompose combined characters
+                                                                    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+                                                                    .replace(/[^a-zA-Z0-9.-]/g, "_"); // Replace invalid chars with underscore
+
+                                                                const filename = "public/" + Date.now() + "_" + sanitizedFileName;
 
                                                                 // Upload direto via Frontend usando a chave ANON (pública)
                                                                 // Isso respeita o RLS porque o usuário está autenticado na sessão do browser (se estiver usando Supabase Auth)
