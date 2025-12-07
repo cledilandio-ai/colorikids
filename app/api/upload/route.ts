@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Use Service Role Key for backend uploads to bypass RLS if needed, or Anon key if policies allow
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
     try {
@@ -14,18 +18,30 @@ export async function POST(request: Request) {
             );
         }
 
-        const buffer = Buffer.from(await file.arrayBuffer());
+        const buffer = await file.arrayBuffer();
         const filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
 
-        // Save to public/uploads directory
-        const uploadDir = path.join(process.cwd(), "public/uploads");
-        const filePath = path.join(uploadDir, filename);
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+            .from("uploads")
+            .upload(filename, buffer, {
+                contentType: file.type,
+                upsert: false
+            });
 
-        await writeFile(filePath, buffer);
+        if (error) {
+            console.error("Supabase storage error:", error);
+            throw error;
+        }
+
+        // Get public URL
+        const { data: publicUrlData } = supabase.storage
+            .from("uploads")
+            .getPublicUrl(filename);
 
         return NextResponse.json({
             success: true,
-            url: `/uploads/${filename}`
+            url: publicUrlData.publicUrl
         });
     } catch (error) {
         console.error("Error uploading file:", error);
