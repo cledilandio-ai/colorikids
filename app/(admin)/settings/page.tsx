@@ -94,7 +94,12 @@ export default function SettingsPage() {
                     return;
                 }
 
-                const filename = "public/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+                const sanitizedFileName = file.name
+                    .normalize('NFD') // Decompose combined characters
+                    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+                    .replace(/[^a-zA-Z0-9.-]/g, "_"); // Replace invalid chars with underscore
+
+                const filename = "public/" + Date.now() + "_" + sanitizedFileName;
 
                 const { data, error } = await supabase.storage
                     .from("uploads")
