@@ -117,6 +117,8 @@ export default function SettingsPage() {
                     featuredImageUrls: [...prev.featuredImageUrls, publicUrlData.publicUrl]
                 }));
 
+                alert(`Imagem enviada com sucesso! URL: ${publicUrlData.publicUrl}`);
+
             } catch (err) {
                 console.error(err);
                 alert("Erro inesperado no upload.");
