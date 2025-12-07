@@ -305,7 +305,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                                     return;
                                                                 }
 
-                                                                const filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+                                                                const filename = "public/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
 
                                                                 const { data, error } = await supabase.storage
                                                                     .from("uploads")

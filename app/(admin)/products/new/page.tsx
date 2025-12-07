@@ -262,7 +262,7 @@ export default function NewProductPage() {
                                                                     return;
                                                                 }
 
-                                                                const filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+                                                                const filename = "public/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
 
                                                                 // Upload direto via Frontend usando a chave ANON (pública)
                                                                 // Isso respeita o RLS porque o usuário está autenticado na sessão do browser (se estiver usando Supabase Auth)
