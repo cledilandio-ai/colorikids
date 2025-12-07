@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Trash } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function NewProductPage() {
     const router = useRouter();
@@ -254,13 +255,40 @@ export default function NewProductPage() {
                                                     onChange={async (e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file) {
-                                                            const uploadData = new FormData();
-                                                            uploadData.append("file", file);
                                                             try {
-                                                                const res = await fetch("/api/upload", { method: "POST", body: uploadData });
-                                                                const data = await res.json();
-                                                                if (data.success) updateVariant(index, "imageUrl", data.url);
-                                                            } catch (err) { console.error(err); }
+                                                                // Validar se o arquivo é uma imagem
+                                                                if (!file.type.startsWith("image/")) {
+                                                                    alert("Por favor, selecione apenas imagens.");
+                                                                    return;
+                                                                }
+
+                                                                const filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+
+                                                                // Upload direto via Frontend usando a chave ANON (pública)
+                                                                // Isso respeita o RLS porque o usuário está autenticado na sessão do browser (se estiver usando Supabase Auth)
+                                                                // Se não estiver usando Supabase Auth, a política deve ser 'public' ou 'anon', mas vamos testar.
+                                                                const { data, error } = await supabase.storage
+                                                                    .from("uploads")
+                                                                    .upload(filename, file, {
+                                                                        upsert: false
+                                                                    });
+
+                                                                if (error) {
+                                                                    console.error("Erro no upload:", error);
+                                                                    alert("Erro ao fazer upload da imagem. Verifique o console.");
+                                                                    return;
+                                                                }
+
+                                                                const { data: publicUrlData } = supabase.storage
+                                                                    .from("uploads")
+                                                                    .getPublicUrl(filename);
+
+                                                                updateVariant(index, "imageUrl", publicUrlData.publicUrl);
+
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert("Erro inesperado no upload.");
+                                                            }
                                                         }
                                                     }}
                                                 />

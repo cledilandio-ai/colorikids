@@ -33,9 +33,11 @@ export async function POST(request: Request) {
         }
 
         const buffer = await file.arrayBuffer();
-        const filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
+        // Adiciona prefixo 'private/' para respeitar a estrutura de pastas sugerida pela policy, 
+        // embora a Service Role Key devesse ignorar isso, é uma boa prática manter organizado.
+        const filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
 
-        // Upload to Supabase Storage
+        // Upload para o Supabase Storage
         const { data, error } = await supabase.storage
             .from("uploads")
             .upload(filename, buffer, {
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
             });
 
         if (error) {
-            console.error("Supabase storage error:", error);
+            console.error("Erro detalhado do Supabase Storage:", JSON.stringify(error, null, 2));
             throw error;
         }
 
