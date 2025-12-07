@@ -9,6 +9,14 @@ const nextConfig = {
         // Ignora alertas de estilo de código
         ignoreDuringBuilds: true,
     },
+    images: {
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: 'fmkcqciijcphyibzxkmr.supabase.co',
+            },
+        ],
+    },
 };
 
 module.exports = nextConfig;
