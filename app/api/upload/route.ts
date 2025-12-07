@@ -1,13 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Use Service Role Key for backend uploads to bypass RLS if needed, or Anon key if policies allow
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Supabase client will be initialized inside the handler to allow build without env vars
+// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+// const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; 
+// const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(request: Request) {
     try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+            console.error("Missing Supabase configuration");
+            // If env vars are missing, we return a server error, but build succeeds
+            return NextResponse.json(
+                { error: "Server configuration error: Missing Supabase credentials." },
+                { status: 500 }
+            );
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
         const formData = await request.formData();
         const file = formData.get("file") as File;
 
