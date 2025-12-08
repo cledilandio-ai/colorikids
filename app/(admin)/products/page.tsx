@@ -20,7 +20,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: { l
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
                 <h1 className="text-3xl font-bold text-gray-800">Produtos</h1>
                 <div className="flex gap-2">
                     <RestockButton products={products} />

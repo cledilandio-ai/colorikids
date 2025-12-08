@@ -7,21 +7,22 @@ const prisma = new PrismaClient();
 export async function POST(request: Request) {
     try {
         const { email, password } = await request.json();
+        const normalizedEmail = email.toLowerCase().trim();
 
         // 1. Busca o usuário no banco
         const user = await prisma.user.findUnique({
-            where: { email },
+            where: { email: normalizedEmail },
         });
 
-        // 2. Se o usuário não existir, retorna erro imediatamente
+        // 2. Se o usuário não existir
         if (!user) {
             return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
         }
 
-        // 3. Compara a senha digitada com a senha criptografada no banco
+        // 3. Compara a senha
         const passwordMatch = await bcrypt.compare(password, user.password);
 
-        // 4. Se a senha não bater, retorna erro
+        // 4. Se a senha não bater
         if (!passwordMatch) {
             return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
         }
