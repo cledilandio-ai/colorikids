@@ -27,7 +27,7 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
     const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
 
     const categories = useMemo(() => {
-        const cats = new Set(initialProducts.map(p => p.category).filter(Boolean));
+        const cats = new Set(initialProducts.map(p => p.category).filter((c): c is string => !!c));
         return ["Todos", ...Array.from(cats)];
     }, [initialProducts]);
 
@@ -105,7 +105,7 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
                         Nenhum produto encontrado com os filtros selecionados.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                         {filteredProducts.map((product) => (
                             <ProductCard key={product.id} product={product} />
                         ))}

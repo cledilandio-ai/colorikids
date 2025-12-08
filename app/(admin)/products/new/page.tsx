@@ -194,28 +194,12 @@ export default function NewProductPage() {
                                     </div>
                                     <div className="space-y-1 sm:w-32 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Cor</label>
-                                        <select
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none bg-white h-[38px]"
+                                        <input
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             value={variant.color}
                                             onChange={(e) => updateVariant(index, "color", e.target.value)}
-                                        >
-                                            <option value="">Selecione...</option>
-                                            <option value="Branco">Branco</option>
-                                            <option value="Preto">Preto</option>
-                                            <option value="Azul">Azul</option>
-                                            <option value="Rosa">Rosa</option>
-                                            <option value="Verde">Verde</option>
-                                            <option value="Amarelo">Amarelo</option>
-                                            <option value="Vermelho">Vermelho</option>
-                                            <option value="Cinza">Cinza</option>
-                                            <option value="Bege">Bege</option>
-                                            <option value="Laranja">Laranja</option>
-                                            <option value="Roxo">Roxo</option>
-                                            <option value="Marrom">Marrom</option>
-                                            <option value="Jeans">Jeans</option>
-                                            <option value="Listras">Listras</option>
-                                            <option value="Estampado">Estampado</option>
-                                        </select>
+                                            placeholder="Ex: Azul"
+                                        />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">

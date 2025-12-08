@@ -44,10 +44,34 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     // Find the specific variant based on selection
     const selectedVariant = availableSizes.find((v: any) => v.size === selectedSize);
 
-    // Determine display image: Selected Variant Image > Product Image
-    const displayImage = selectedVariant?.imageUrl ||
-        (selectedColor && variantsByColor[selectedColor]?.[0]?.imageUrl) ||
-        product.imageUrl;
+    // Collect all unique images
+    const allImages = [
+        product.imageUrl,
+        ...product.variants.map((v: any) => v.imageUrl)
+    ].filter((url, index, self) => url && self.indexOf(url) === index);
+
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // Update carousel when variant is selected
+    const handleVariantChange = (color: string) => {
+        setSelectedColor(color);
+        setSelectedSize("");
+
+        // Find first image for this color
+        const variantImage = product.variants.find((v: any) => v.color === color && v.imageUrl)?.imageUrl;
+        if (variantImage) {
+            const index = allImages.indexOf(variantImage);
+            if (index !== -1) setCurrentImageIndex(index);
+        }
+    };
+
+    const nextImage = () => {
+        setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+    };
+
+    const prevImage = () => {
+        setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+    };
 
     const handleAddToCart = () => {
         if (!selectedVariant) {
@@ -62,7 +86,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
             qty: 1,
             variantId: selectedVariant.id,
             variantName: `${selectedVariant.size} ${selectedVariant.color ? `- ${selectedVariant.color}` : ""}`,
-            imageUrl: displayImage,
+            imageUrl: allImages[currentImageIndex] || product.imageUrl,
             sku: selectedVariant.sku
         });
 
@@ -81,14 +105,61 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
                 <div className="grid gap-12 md:grid-cols-2">
                     {/* Image Gallery */}
-                    <div className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 border">
-                        {displayImage ? (
-                            <Image
-                                src={displayImage}
-                                alt={product.name}
-                                fill
-                                className="object-cover transition-all duration-300"
-                            />
+                    <div className="relative aspect-square overflow-hidden rounded-2xl bg-gray-100 border group">
+                        {/* Carousel Main Image */}
+                        {allImages.length > 0 ? (
+                            <>
+                                <div
+                                    className="flex h-full w-full transition-transform duration-500 ease-out"
+                                    style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
+                                >
+                                    {allImages.map((src, index) => (
+                                        <div key={index} className="relative h-full w-full flex-shrink-0">
+                                            <Image
+                                                src={src}
+                                                alt={`${product.name} - Imagem ${index + 1}`}
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Navigation Arrows */}
+                                {allImages.length > 1 && (
+                                    <>
+                                        <button
+                                            onClick={prevImage}
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md transition-opacity hover:bg-white opacity-0 group-hover:opacity-100"
+                                        >
+                                            <ArrowLeft className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            onClick={nextImage}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md transition-opacity hover:bg-white opacity-0 group-hover:opacity-100"
+                                            style={{ transform: 'translateY(-50%) rotate(180deg)' }}
+                                        >
+                                            <ArrowLeft className="h-5 w-5" />
+                                        </button>
+                                    </>
+                                )}
+
+                                {/* Dots Indicators */}
+                                {allImages.length > 1 && (
+                                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                                        {allImages.map((_, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => setCurrentImageIndex(index)}
+                                                className={`h-2 w-2 rounded-full transition-all ${currentImageIndex === index
+                                                    ? "bg-primary w-4"
+                                                    : "bg-white/60 hover:bg-white"
+                                                    }`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="flex h-full w-full items-center justify-center text-gray-400">
                                 Sem Imagem
@@ -119,10 +190,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                                 <select
                                     className="w-full rounded-lg border border-gray-300 bg-white p-3 text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                     value={selectedColor}
-                                    onChange={(e) => {
-                                        setSelectedColor(e.target.value);
-                                        setSelectedSize("");
-                                    }}
+                                    onChange={(e) => handleVariantChange(e.target.value)}
                                 >
                                     <option value="">Selecione uma cor...</option>
                                     {colors.map((color) => (
