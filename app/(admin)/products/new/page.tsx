@@ -178,20 +178,24 @@ export default function NewProductPage() {
                         {variants.map((variant, index) => (
                             <div key={index} className="flex flex-col gap-3 rounded-md border bg-white p-3 sm:flex-row sm:items-end">
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
-                                    <div className="space-y-1 sm:w-24 sm:flex-none">
-                                        <label className="text-xs text-gray-500">Tamanho (Idade)</label>
-                                        <input
-                                            required
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none bg-white"
-                                            placeholder="Ex: 2 Anos"
-                                            value={variant.size}
-                                            onChange={(e) => updateVariant(index, "size", e.target.value)}
-                                        />
+                                    <div className="space-y-1 sm:w-28 sm:flex-none">
+                                        <label className="text-xs font-medium text-gray-700">Tamanho</label>
+                                        <div className="relative flex items-center">
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full rounded-md border border-gray-300 p-2 pr-12 text-sm focus:border-primary focus:outline-none bg-white h-[38px]"
+                                                placeholder="0"
+                                                value={variant.size.replace(/\D/g, "")}
+                                                onChange={(e) => updateVariant(index, "size", `${e.target.value} Anos`)}
+                                            />
+                                            <span className="absolute right-3 text-sm text-gray-500 pointer-events-none">Anos</span>
+                                        </div>
                                     </div>
                                     <div className="space-y-1 sm:w-32 sm:flex-none">
-                                        <label className="text-xs text-gray-500">Cor</label>
+                                        <label className="text-xs font-medium text-gray-700">Cor</label>
                                         <select
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none bg-white"
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none bg-white h-[38px]"
                                             value={variant.color}
                                             onChange={(e) => updateVariant(index, "color", e.target.value)}
                                         >
@@ -216,20 +220,20 @@ export default function NewProductPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
                                     <div className="space-y-1 sm:w-20 sm:flex-none">
-                                        <label className="text-xs text-gray-500">Qtd.</label>
+                                        <label className="text-xs font-medium text-gray-700">Qtd.</label>
                                         <input
                                             type="number"
                                             required
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none"
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             placeholder="0"
                                             value={variant.stockQuantity}
                                             onChange={(e) => updateVariant(index, "stockQuantity", e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-1 sm:flex-1">
-                                        <label className="text-xs text-gray-500">SKU (Opcional)</label>
+                                        <label className="text-xs font-medium text-gray-700">SKU (Opcional)</label>
                                         <input
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none"
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             placeholder="Auto"
                                             value={variant.sku || ""}
                                             onChange={(e) => updateVariant(index, "sku", e.target.value)}
