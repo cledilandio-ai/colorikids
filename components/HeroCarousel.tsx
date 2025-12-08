@@ -56,11 +56,11 @@ export function HeroCarousel({ images }: HeroCarouselProps) {
                         />
                         {/* Overlay CTA for Instagram Link */}
                         {showOverlay && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors hover:bg-black/20">
+                            <div className="absolute inset-0 flex items-end justify-center pb-16 bg-black/10 transition-colors hover:bg-black/20">
                                 <div className={`flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-lg backdrop-blur-sm transition-all transform ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
                                     } duration-700 delay-300`}>
                                     <Instagram className="h-5 w-5 text-pink-600" />
-                                    <span className="text-sm font-semibold text-gray-800">Veja no Instagram</span>
+                                    <span className="text-sm font-semibold text-gray-800">Click para ver no instagram</span>
                                 </div>
                             </div>
                         )}
