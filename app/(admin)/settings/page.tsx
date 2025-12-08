@@ -17,7 +17,7 @@ export default function SettingsPage() {
         instagram: "",
         pixKey: "",
         pixKeyType: "CPF",
-        featuredImageUrls: [] as string[],
+        featuredImageUrls: [] as { url: string; instagramLink?: string }[],
     });
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
@@ -119,7 +119,7 @@ export default function SettingsPage() {
 
                 setFormData(prev => ({
                     ...prev,
-                    featuredImageUrls: [...prev.featuredImageUrls, publicUrlData.publicUrl]
+                    featuredImageUrls: [...prev.featuredImageUrls, { url: publicUrlData.publicUrl, instagramLink: "" }]
                 }));
 
             } catch (err) {
@@ -134,6 +134,14 @@ export default function SettingsPage() {
             ...prev,
             featuredImageUrls: prev.featuredImageUrls.filter((_, i) => i !== index)
         }));
+    };
+
+    const handleHighlightLinkChange = (index: number, link: string) => {
+        setFormData(prev => {
+            const newHighlights = [...prev.featuredImageUrls];
+            newHighlights[index] = { ...newHighlights[index], instagramLink: link };
+            return { ...prev, featuredImageUrls: newHighlights };
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -281,7 +289,7 @@ export default function SettingsPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Instagram URL
+                                    Instagram URL (Perfil da Loja)
                                 </label>
                                 <input
                                     name="instagram"
@@ -339,36 +347,54 @@ export default function SettingsPage() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Foto de Destaque (Mobile)
+                                    Destaques (Mobile)
                                 </label>
-                                <div className="space-y-4">
-                                    <div className="flex flex-wrap gap-4">
-                                        {formData.featuredImageUrls.map((url, index) => (
-                                            <div key={index} className="relative h-32 w-32 overflow-hidden rounded-md border group">
-                                                <img src={url} alt={`Destaque ${index + 1}`} className="h-full w-full object-cover" />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeImage(index)}
-                                                    className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs transition-opacity"
-                                                >
-                                                    Remover
-                                                </button>
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                        {formData.featuredImageUrls.map((item, index) => (
+                                            <div key={index} className="flex flex-col gap-2 rounded-lg border p-3 bg-gray-50">
+                                                <div className="relative h-40 w-full overflow-hidden rounded-md border group">
+                                                    <img src={item.url} alt={`Destaque ${index + 1}`} className="h-full w-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeImage(index)}
+                                                        className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center text-sm font-medium transition-opacity hover:bg-black/60"
+                                                    >
+                                                        <Trash className="mr-2 h-4 w-4" />
+                                                        Remover Imagem
+                                                    </button>
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-medium text-gray-600 block mb-1">
+                                                        Link do Instagram (Opcional)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.instagramLink || ""}
+                                                        onChange={(e) => handleHighlightLinkChange(index, e.target.value)}
+                                                        className="w-full text-sm rounded border border-gray-300 px-2 py-1.5 focus:border-primary focus:outline-none"
+                                                        placeholder="Cole o link do Reel/Post"
+                                                    />
+                                                </div>
                                             </div>
                                         ))}
-                                        <label className="cursor-pointer flex h-32 w-32 flex-col items-center justify-center gap-2 rounded-md border border-dashed text-xs text-gray-500 hover:bg-gray-50">
-                                            <span className="text-2xl">+</span>
-                                            <span>Adicionar</span>
+
+                                        <label className="cursor-pointer flex h-40 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
+                                                <Plus className="h-6 w-6 text-gray-600" />
+                                            </span>
+                                            <span className="font-medium">Adicionar Novo Destaque</span>
                                             <input
                                                 type="file"
-                                                accept="image/jpeg, image/jpg"
+                                                accept="image/jpeg, image/jpg, image/png"
                                                 className="hidden"
                                                 onChange={handleImageUpload}
                                             />
                                         </label>
                                     </div>
                                 </div>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Imagem exibida no topo da página inicial em dispositivos móveis.
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Imagens exibidas no topo da página inicial em dispositivos móveis. Você pode adicionar um link do Instagram para cada imagem.
                                 </p>
                             </div>
 
