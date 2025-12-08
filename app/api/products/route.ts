@@ -25,25 +25,49 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { name, description, basePrice, costPrice, imageUrl, variants, category, gender } = body;
 
-        const product = await prisma.product.create({
-            data: {
-                name,
-                description,
-                basePrice: parseFloat(basePrice),
-                costPrice: costPrice ? parseFloat(costPrice) : 0,
-                imageUrl: variants[0]?.imageUrl || null, // Use first variant image as main image
-                category,
-                gender,
-                variants: {
-                    create: variants.map((v: any, index: number) => ({
-                        size: v.size,
-                        color: v.color,
-                        stockQuantity: parseInt(v.stockQuantity),
-                        imageUrl: v.imageUrl,
-                        sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${v.color?.substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${index}`, // Added index to ensure uniqueness
-                    })),
+        const product = await prisma.$transaction(async (tx) => {
+            // 1. Create Product
+            const newProduct = await tx.product.create({
+                data: {
+                    name,
+                    description,
+                    basePrice: parseFloat(basePrice),
+                    costPrice: costPrice ? parseFloat(costPrice) : 0,
+                    imageUrl: variants[0]?.imageUrl || null,
+                    category,
+                    gender,
+                    variants: {
+                        create: variants.map((v: any, index: number) => ({
+                            size: v.size,
+                            color: v.color,
+                            stockQuantity: parseInt(v.stockQuantity),
+                            imageUrl: v.imageUrl,
+                            sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${v.color?.substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${index}`,
+                        })),
+                    },
                 },
-            },
+                include: { variants: true } // Include to get created variants
+            });
+
+            // 2. Calculate Initial Stock Cost
+            const costPerUnit = parseFloat(costPrice) || 0;
+            const totalInitialStock = variants.reduce((acc: number, v: any) => acc + parseInt(v.stockQuantity), 0);
+            const totalInitialCost = totalInitialStock * costPerUnit;
+
+            // 3. Register Financial Transaction if there is cost
+            if (totalInitialCost > 0) {
+                await tx.treasuryTransaction.create({
+                    data: {
+                        description: `Estoque Inicial - ${name}`,
+                        amount: totalInitialCost,
+                        type: "OUT",
+                        category: "COMPRA_PRODUTO", // Ensure this Category exists or use raw string if schema allows
+                        date: new Date(),
+                    }
+                });
+            }
+
+            return newProduct;
         });
 
         // Revalidate cache to show new product immediately
