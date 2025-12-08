@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,10 @@ export async function POST(request: Request) {
                 },
             },
         });
+
+        // Revalidate cache to show new product immediately
+        revalidatePath("/products");
+        revalidatePath("/"); // Home page usually lists products
 
         return NextResponse.json(product);
     } catch (error) {

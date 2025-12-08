@@ -263,9 +263,10 @@ export default function NewProductPage() {
                                                                 }
 
                                                                 const sanitizedFileName = file.name
-                                                                    .normalize('NFD') // Decompose combined characters
-                                                                    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
-                                                                    .replace(/[^a-zA-Z0-9.-]/g, "_"); // Replace invalid chars with underscore
+                                                                    .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                                                                    .replace(/\s+/g, '-') // Espaços para hífens
+                                                                    .replace(/[^a-zA-Z0-9.-]/g, "") // Remove tudo que não for letra, número, ponto ou hífen
+                                                                    .toLowerCase(); // Tudo minúsculo
 
                                                                 const filename = "public/" + Date.now() + "_" + sanitizedFileName;
 
