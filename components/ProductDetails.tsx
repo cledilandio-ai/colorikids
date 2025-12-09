@@ -130,13 +130,13 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                                     <>
                                         <button
                                             onClick={prevImage}
-                                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md transition-opacity hover:bg-white opacity-0 group-hover:opacity-100"
+                                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md hover:bg-white"
                                         >
                                             <ArrowLeft className="h-5 w-5" />
                                         </button>
                                         <button
                                             onClick={nextImage}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md transition-opacity hover:bg-white opacity-0 group-hover:opacity-100"
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 text-gray-800 shadow-md hover:bg-white"
                                             style={{ transform: 'translateY(-50%) rotate(180deg)' }}
                                         >
                                             <ArrowLeft className="h-5 w-5" />

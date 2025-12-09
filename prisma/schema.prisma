@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL_POOLER")
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -27,7 +27,9 @@ model Product {
   imageUrl    String?
   category    String? // Vestido, Conjunto, Blusa, etc.
   gender      String? // MASCULINO, FEMININO, UNISSEX
+
   variants    ProductVariant[]
+  active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -59,8 +61,19 @@ model CashRegister {
   status        String   // OPEN, CLOSED
   userId        String?  // Who opened/closed
   orders        Order[]
+  transactions  CashTransaction[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model CashTransaction {
+  id              String       @id @default(uuid())
+  amount          Float
+  type            String       // IN (Reforço), OUT (Sangria/Reembolso)
+  description     String?
+  cashRegisterId  String
+  cashRegister    CashRegister @relation(fields: [cashRegisterId], references: [id])
+  createdAt       DateTime     @default(now())
 }
 
 model Customer {
@@ -119,6 +132,7 @@ model Order {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  active        Boolean  @default(true)
 }
 
 model StoreConfig {

@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, CheckCircle, XCircle, Trash, Edit } from "lucide-react";
+import { ArrowLeft, Printer, CheckCircle, XCircle, Trash, Edit, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { OrderReturnModal } from "@/components/admin/orders/OrderReturnModal";
 
 export default function OrderDetailsPage({ params }: { params: { id: string } }) {
     const router = useRouter();
     const [order, setOrder] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [variants, setVariants] = useState<any[]>([]);
+    const [showReturnModal, setShowReturnModal] = useState(false);
 
     useEffect(() => {
         fetchOrder();
@@ -74,7 +76,9 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
     };
 
     const handleDelete = async () => {
-        if (!confirm("Tem certeza que deseja EXCLUIR este pedido? Esta ação não pode ser desfeita.")) return;
+        const message = "🛑 ATENÇÃO: Este pedido será ARQUIVADO.\n\nEle desaparecerá da lista principal, mas o histórico financeiro e de estoque será MANTIDO.\n\nDeseja confirmar?";
+
+        if (!confirm(message)) return;
 
         try {
             const res = await fetch(`/api/orders/${params.id}`, {
@@ -82,12 +86,15 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
             });
 
             if (res.ok) {
+                alert("Pedido arquivado com sucesso!");
                 router.push("/orders");
             } else {
-                alert("Erro ao excluir pedido.");
+                const data = await res.json();
+                alert(`Erro: ${data.error || "Erro ao processar a exclusão."}`);
             }
         } catch (error) {
             console.error(error);
+            alert("Erro de conexão com o servidor.");
         }
     };
 
@@ -105,6 +112,10 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
         return variant ? variant.stockQuantity : "N/A";
     };
 
+
+
+    // ... (existing helper functions)
+
     return (
         <div className="p-6 max-w-4xl mx-auto print:p-0 print:max-w-none">
             {/* Header / Actions - Hidden on Print */}
@@ -115,6 +126,13 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={handlePrint} className="gap-2">
                         <Printer className="h-4 w-4" /> Imprimir
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowReturnModal(true)}
+                        className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
+                    >
+                        <RefreshCcw className="h-4 w-4" /> Devolução / Troca
                     </Button>
                     {order.status === "PENDING" && (
                         <>
@@ -137,6 +155,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
 
             {/* Order Content */}
             <div className="rounded-xl border bg-white p-8 shadow-sm print:border-none print:shadow-none">
+                {/* ... (Existing Order Content) ... */}
                 <div className="mb-8 border-b pb-6">
                     <div className="flex items-start justify-between">
                         <div>
@@ -185,11 +204,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                         </thead>
                         <tbody className="divide-y">
                             {items.map((item: any, index: number) => {
-                                // Find full product details to show description if needed
-                                // We can find it via variants list if we have productId there, or just iterate variants
                                 const variant = variants.find(v => v.id === item.variantId);
-                                // Note: variants state currently only has variant info, we might need to fetch product info better.
-                                // But let's check if we can get the image from item.imageUrl which we saved.
 
                                 return (
                                     <tr key={index}>
@@ -210,7 +225,6 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                                                 </div>
                                                 <div>
                                                     <p className="font-semibold">{item.name}</p>
-                                                    {/* If we had description, we would show it here. For now, let's show variant details clearly */}
                                                 </div>
                                             </div>
                                         </td>
@@ -234,6 +248,26 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                     </table>
                 </div>
             </div>
+
+            {order && (
+                <OrderReturnModal
+                    isOpen={showReturnModal}
+                    onClose={() => setShowReturnModal(false)}
+                    orderId={order.id}
+                    items={items.map((i: any) => ({
+                        id: i.variantId, // Using variantId as Item ID for unique key? Wait, items usually have no ID in this simple JSON structure. Let's use variantId as logic key.
+                        productName: i.name,
+                        variantName: i.variantName || "",
+                        quantity: i.qty,
+                        price: i.price,
+                        variantId: i.variantId
+                    }))}
+                    onConfirm={() => {
+                        fetchVariants(); // Refresh stock
+                        // Potentially reload order if status changed
+                    }}
+                />
+            )}
         </div>
     );
 }

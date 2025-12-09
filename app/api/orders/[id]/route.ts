@@ -141,14 +141,29 @@ export async function DELETE(
 ) {
     try {
         const id = params.id;
-        await prisma.order.delete({
+
+        // Fetch order to check status
+        const order = await prisma.order.findUnique({
             where: { id },
+            select: { status: true }
         });
+
+        if (!order) {
+            return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        }
+
+        // Soft Delete (Archive) for ALL Orders
+        // This preserves financial/stock history and prevents Foreign Key errors with Payments/Receivables
+        await prisma.order.update({
+            where: { id },
+            data: { active: false }
+        });
+
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error deleting order:", error);
         return NextResponse.json(
-            { error: "Error deleting order" },
+            { error: `Erro ao excluir pedido: ${error.message || "Erro desconhecido"}` },
             { status: 500 }
         );
     }

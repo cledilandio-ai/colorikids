@@ -16,6 +16,7 @@ interface Product {
     imageUrl: string | null;
     category: string | null;
     gender: string | null;
+    variants: { id: string; imageUrl: string | null }[];
 }
 
 interface StorefrontHomeProps {

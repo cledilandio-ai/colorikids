@@ -13,7 +13,7 @@ export function ProductActions({ productId }: ProductActionsProps) {
     const router = useRouter();
 
     const handleDelete = async () => {
-        if (!confirm("Tem certeza que deseja excluir este produto?")) return;
+        if (!confirm("🛑 ATENÇÃO: Ao excluir este produto, ele será ARQUIVADO (oculto do site e listas), mas o histórico de vendas e estoque será preservado.\n\nDeseja realmente arquivar?")) return;
 
         try {
             const res = await fetch(`/api/products/${productId}`, {

@@ -5,7 +5,10 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 
 export default async function OrdersPage({ searchParams }: { searchParams: { status?: string } }) {
-    const where = searchParams.status ? { status: searchParams.status } : {};
+    const where = {
+        ...(searchParams.status ? { status: searchParams.status } : {}),
+        active: true
+    };
 
     const orders = await prisma.order.findMany({
         where,

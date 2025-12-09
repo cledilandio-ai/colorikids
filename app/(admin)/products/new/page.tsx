@@ -25,7 +25,7 @@ export default function NewProductPage() {
     ]);
 
     const addVariant = () => {
-        setVariants([...variants, { size: "", color: "", stockQuantity: "0", imageUrl: "" }]);
+        setVariants([{ size: "", color: "", stockQuantity: "0", imageUrl: "" }, ...variants]);
     };
 
     const removeVariant = (index: number) => {
@@ -35,7 +35,36 @@ export default function NewProductPage() {
     const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "imageUrl" | "sku", value: string) => {
         const newVariants = [...variants];
         newVariants[index] = { ...newVariants[index], [field]: value };
+
+        // Auto-fill image if color matches another variant
+        if (field === "color") {
+            const existingVariantWithColor = variants.find((v, i) => i !== index && v.color === value && v.imageUrl);
+            if (existingVariantWithColor) {
+                newVariants[index].imageUrl = existingVariantWithColor.imageUrl;
+            }
+        }
+
+        // Sync image to all variants of same color if image is updated
+        if (field === "imageUrl") {
+            newVariants.forEach((v, i) => {
+                if (v.color === newVariants[index].color && i !== index) {
+                    v.imageUrl = value;
+                }
+            });
+        }
+
         setVariants(newVariants);
+    };
+
+    const sortVariants = () => {
+        const sorted = [...variants].sort((a, b) => {
+            const colorCompare = a.color.localeCompare(b.color);
+            if (colorCompare !== 0) return colorCompare;
+            const sizeA = parseInt(a.size.replace(/\D/g, '')) || 0;
+            const sizeB = parseInt(b.size.replace(/\D/g, '')) || 0;
+            return sizeA - sizeB;
+        });
+        setVariants(sorted);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -171,6 +200,9 @@ export default function NewProductPage() {
                         <label className="text-sm font-medium text-gray-700">Grade (Tamanhos e Estoque)</label>
                         <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
                             <Plus className="h-3 w-3" /> Adicionar Tamanho
+                        </Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={sortVariants} className="gap-1 ml-2">
+                            Agrupar Cores
                         </Button>
                     </div>
 

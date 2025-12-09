@@ -6,6 +6,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Trash } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { RestockButton } from "@/components/admin/RestockButton";
 
 export default function EditProductPage({ params }: { params: { id: string } }) {
     const router = useRouter();
@@ -21,7 +30,13 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         gender: "",
     });
 
-    const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; imageUrl?: string; sku?: string }[]>([]);
+    const [variants, setVariants] = useState<{ id?: string; size: string; color: string; stockQuantity: string; imageUrl?: string; sku?: string }[]>([]);
+
+    // New state for stock financial confirmation
+    const [initialVariants, setInitialVariants] = useState<any[]>([]);
+    const [showFinancialDialog, setShowFinancialDialog] = useState(false);
+    const [stockDifference, setStockDifference] = useState<{ quantity: number, cost: number }>({ quantity: 0, cost: 0 });
+    const [financialAmount, setFinancialAmount] = useState("");
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -38,6 +53,23 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                         gender: product.gender || "",
                     });
                     setVariants(product.variants.map((v: any) => ({
+                        id: v.id,
+                        size: /^\d+$/.test(v.size) ? `${v.size} Anos` : v.size, // Normalize "14" to "14 Anos"
+                        color: v.color || "",
+                        stockQuantity: v.stockQuantity.toString(),
+                        imageUrl: v.imageUrl || "",
+                        sku: v.sku || "",
+                    })).sort((a: any, b: any) => {
+                        const colorCompare = a.color.localeCompare(b.color);
+                        if (colorCompare !== 0) return colorCompare;
+                        const sizeA = parseInt(a.size.replace(/\D/g, '')) || 0;
+                        const sizeB = parseInt(b.size.replace(/\D/g, '')) || 0;
+                        return sizeA - sizeB;
+                    }));
+
+                    // Store initial state for stock comparison
+                    setInitialVariants(product.variants.map((v: any) => ({
+                        id: v.id,
                         size: v.size,
                         color: v.color || "",
                         stockQuantity: v.stockQuantity.toString(),
@@ -58,11 +90,47 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     }, [params.id]);
 
     const addVariant = () => {
-        setVariants([...variants, { size: "", color: "", stockQuantity: "0", imageUrl: "" }]);
+        setVariants([{ size: "", color: "", stockQuantity: "0", imageUrl: "" }, ...variants]);
     };
 
     const removeVariant = (index: number) => {
         setVariants(variants.filter((_, i) => i !== index));
+    };
+
+    const sortVariants = () => {
+        let newVariants = [...variants];
+
+        // 1. Sync images: For each color, find a representative image if available
+        const colorImages: Record<string, string> = {};
+        newVariants.forEach(v => {
+            if (v.color && v.imageUrl && !colorImages[v.color]) {
+                colorImages[v.color] = v.imageUrl;
+            }
+        });
+
+        // Apply images to those missing them within the same color group
+        newVariants = newVariants.map(v => {
+            if (v.color && colorImages[v.color] && !v.imageUrl) {
+                return { ...v, imageUrl: colorImages[v.color] };
+            }
+            return v;
+        });
+
+        // 2. Sort safely
+        const sorted = newVariants.sort((a, b) => {
+            const colorA = a.color || "";
+            const colorB = b.color || "";
+
+            const colorCompare = colorA.localeCompare(colorB);
+            if (colorCompare !== 0) return colorCompare;
+
+            const sizeA = parseInt((a.size || "").replace(/\D/g, '')) || 0;
+            const sizeB = parseInt((b.size || "").replace(/\D/g, '')) || 0;
+            return sizeA - sizeB;
+        });
+
+        setVariants(sorted);
+        alert("Grade organizada e fotos sincronizadas por cor!");
     };
 
     const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "imageUrl" | "sku", value: string) => {
@@ -71,41 +139,90 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
         // Auto-fill image if color matches another variant
         if (field === "color") {
+            // 1. Try to PULL image from existing group
             const existingVariantWithColor = variants.find((v, i) => i !== index && v.color === value && v.imageUrl);
             if (existingVariantWithColor) {
                 newVariants[index].imageUrl = existingVariantWithColor.imageUrl;
+            } else {
+                // 2. If no image found in group, but WE have an image, PUSH our image to empty members of the new group?
+                // Actually, if we are renaming 'Vermelho' (with photo) -> 'Vermelha' (no photo),
+                // we want 'Vermelha' group to adopt our photo.
+                const currentImage = newVariants[index].imageUrl;
+                if (currentImage) {
+                    // Check if other items in 'Vermelha' group are empty
+                    newVariants.forEach((v, i) => {
+                        if (i !== index && v.color === value && !v.imageUrl) {
+                            v.imageUrl = currentImage;
+                        }
+                    });
+                }
             }
+        }
+
+        // Sync image to all variants of same color if image is updated
+        if (field === "imageUrl") {
+            newVariants.forEach((v, i) => {
+                if (v.color === newVariants[index].color && i !== index) {
+                    v.imageUrl = value;
+                }
+            });
         }
 
         setVariants(newVariants);
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const calculateStockDifference = () => {
+        const initialTotal = initialVariants.reduce((acc, v) => acc + parseInt(v.stockQuantity || "0"), 0);
+        const currentTotal = variants.reduce((acc, v) => acc + parseInt(v.stockQuantity || "0"), 0);
+        return currentTotal - initialTotal;
+    };
+
+    const handlePreSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const difference = calculateStockDifference();
+
+        if (difference > 0) {
+            // Stock increased - Ask about financial record
+            const estimatedCost = difference * (parseFloat(formData.costPrice) || 0);
+            setStockDifference({ quantity: difference, cost: estimatedCost });
+            setFinancialAmount(estimatedCost.toFixed(2));
+            setShowFinancialDialog(true);
+        } else {
+            // No stock increase (or decrease) - Save directly
+            await saveProduct(null);
+        }
+    };
+
+    const saveProduct = async (financialRecord: { amount: number, description: string } | null) => {
         setLoading(true);
+
+        const productData = {
+            ...formData,
+            variants,
+            financialRecord
+        };
 
         try {
             const res = await fetch(`/api/products/${params.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...formData,
-                    variants,
-                }),
+                body: JSON.stringify(productData),
             });
 
             if (res.ok) {
                 alert("Produto atualizado com sucesso!");
-                router.push("/products");
+                // router.push("/products"); // Removed redirect to keep user on page
                 router.refresh();
             } else {
-                alert("Erro ao atualizar produto.");
+                const data = await res.json();
+                alert(data.error || "Erro ao atualizar produto.");
             }
         } catch (error) {
             console.error(error);
             alert("Erro ao conectar com o servidor.");
         } finally {
             setLoading(false);
+            setShowFinancialDialog(false);
         }
     };
 
@@ -120,9 +237,56 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     </Button>
                 </Link>
                 <h1 className="text-3xl font-bold text-gray-800">Editar Produto</h1>
+                <div className="ml-auto flex items-center gap-2">
+                    <RestockButton
+                        preSelectedProduct={{
+                            id: params.id,
+                            name: formData.name,
+                            costPrice: parseFloat(formData.costPrice || "0"),
+                            variants: variants.map(v => ({
+                                id: v.id || "new", // Handle partial new variants carefully, but Restock logic likely needs real IDs for updates. 
+                                // Actually, if we are in Edit page, variants might be new/unsaved. Restock usually works on saved variants.
+                                // If the user adds a new variant in 'Edit', it won't have an ID yet.
+                                // But RestockButton is for 'replenishing' essentially.
+                                // If I pass 'id' here, it must be the real database ID for the Restock API to work.
+                                // If variant.id is undefined (newly added in UI but not saved), Restock API will fail if we try to update it.
+                                // However, RestockButton is mostly for adding stock to EXISTING variants.
+                                // So we should map strictly.
+                                size: v.size,
+                                color: v.color,
+                                stockQuantity: parseInt(v.stockQuantity),
+                                sku: v.sku
+                            })) as any // Force cast to avoid strict type issues if mismatch slightly, but generally should match
+                        }}
+                    />
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={async () => {
+                            if (!confirm("🛑 ATENÇÃO: Ao excluir este produto, ele será ARQUIVADO (oculto do site e listas), mas o histórico de vendas e estoque será preservado.\n\nDeseja realmente arquivar?")) return;
+
+                            try {
+                                const res = await fetch(`/api/products/${params.id}`, { method: "DELETE" });
+                                if (res.ok) {
+                                    alert("Produto arquivado com sucesso!");
+                                    router.push("/products");
+                                    router.refresh();
+                                } else {
+                                    alert("Erro ao arquivar produto.");
+                                }
+                            } catch (e) {
+                                console.error(e);
+                                alert("Erro de conexão.");
+                            }
+                        }}
+                        className="gap-2"
+                    >
+                        <Trash className="h-4 w-4" /> Excluir Produto
+                    </Button>
+                </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-white p-6 shadow-sm">
+            <form onSubmit={handlePreSubmit} className="space-y-6 rounded-xl border bg-white p-6 shadow-sm">
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Nome do Produto</label>
                     <input
@@ -215,6 +379,9 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                         <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
                             <Plus className="h-3 w-3" /> Adicionar Tamanho
                         </Button>
+                        <Button type="button" variant="secondary" size="sm" onClick={sortVariants} className="gap-1 ml-2">
+                            Organizar & Sync Fotos
+                        </Button>
                     </div>
 
                     <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
@@ -240,9 +407,15 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                         <input
                                             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             value={variant.color}
-                                            onChange={(e) => updateVariant(index, "color", e.target.value)}
-                                            placeholder="Ex: Azul"
+                                            onChange={(e) => updateVariant(index, "color", e.target.value.toUpperCase())}
+                                            placeholder="Ex: AZUL"
+                                            list={`colors-${index}`}
                                         />
+                                        <datalist id={`colors-${index}`}>
+                                            {Array.from(new Set(variants.map(v => v.color).filter(Boolean))).map(color => (
+                                                <option key={color} value={color} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
@@ -354,13 +527,52 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
                 <div className="flex justify-end gap-4 pt-4">
                     <Link href="/products">
-                        <Button type="button" variant="ghost">Cancelar</Button>
+                        <Button type="button" variant="outline">Voltar / Sair</Button>
                     </Link>
                     <Button type="submit" disabled={loading}>
                         {loading ? "Salvando..." : "Salvar Alterações"}
                     </Button>
                 </div>
-            </form>
-        </div>
+            </form >
+
+            <Dialog open={showFinancialDialog} onOpenChange={setShowFinancialDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Atualização de Estoque Detectada</DialogTitle>
+                        <DialogDescription>
+                            Você adicionou <strong>{stockDifference.quantity}</strong> itens ao estoque.
+                            Deseja registrar o custo dessa entrada no financeiro?
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <label className="block text-sm font-medium text-gray-700">Valor Total de Custo (R$)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                            value={financialAmount}
+                            onChange={(e) => setFinancialAmount(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Calculado base: {stockDifference.quantity} un * R$ {parseFloat(formData.costPrice || "0").toFixed(2)}
+                        </p>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => saveProduct(null)}>
+                            Salvar SEM Financeiro
+                        </Button>
+                        <Button onClick={() => saveProduct({
+                            amount: parseFloat(financialAmount) || 0,
+                            description: `Reposição de Estoque - ${formData.name}`,
+                        })}>
+                            Salvar COM Financeiro
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div >
+
     );
 }
