@@ -42,6 +42,8 @@ export async function POST(request: Request) {
                             size: v.size,
                             color: v.color,
                             stockQuantity: parseInt(v.stockQuantity),
+                            minStock: parseInt(v.minStock) || 1,
+                            lastRestockAt: parseInt(v.stockQuantity) > 0 ? new Date() : null,
                             imageUrl: v.imageUrl,
                             sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${v.color?.substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${index}`,
                         })),

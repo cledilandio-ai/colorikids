@@ -121,6 +121,7 @@ export async function PUT(
                             size: v.size,
                             color: v.color,
                             stockQuantity: parseInt(v.stockQuantity) || 0,
+                            minStock: parseInt(v.minStock) || 1,
                             imageUrl: v.imageUrl,
                             sku: v.sku || null, // Ensure null if empty string to avoid unique constraint on empty strings if applicable
                         }
@@ -130,15 +131,17 @@ export async function PUT(
 
             // 5. Create new variants
             if (variantsToCreate.length > 0) {
-                // Generate robust SKU if missing
-                const dataToCreate = variantsToCreate.map((v: any) => {
-                    const fallbackSku = `${name.substring(0, 3).toUpperCase()}-${(v.color || "VAR").substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
-                    return {
-                        amount: parseFloat(financialRecord.amount) || 0,
-                        type: "OUT",
-                        category: financialRecord.category || "AJUSTE_ESTOQUE",
-                        date: new Date(),
-                    }
+                await tx.productVariant.createMany({
+                    data: variantsToCreate.map((v: any) => ({
+                        productId: id,
+                        size: v.size,
+                        color: v.color,
+                        stockQuantity: parseInt(v.stockQuantity) || 0,
+                        minStock: parseInt(v.minStock) || 1,
+                        lastRestockAt: parseInt(v.stockQuantity) > 0 ? new Date() : null,
+                        imageUrl: v.imageUrl,
+                        sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${(v.color || "VAR").substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`,
+                    }))
                 });
             }
         }, {

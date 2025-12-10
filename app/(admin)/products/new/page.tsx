@@ -20,19 +20,19 @@ export default function NewProductPage() {
         gender: "",
     });
 
-    const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; imageUrl?: string; sku?: string }[]>([
-        { size: "2 Anos", color: "Branco", stockQuantity: "10", imageUrl: "" },
+    const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([
+        { size: "2 Anos", color: "Branco", stockQuantity: "10", minStock: "1", imageUrl: "" },
     ]);
 
     const addVariant = () => {
-        setVariants([{ size: "", color: "", stockQuantity: "0", imageUrl: "" }, ...variants]);
+        setVariants([{ size: "", color: "", stockQuantity: "0", minStock: "1", imageUrl: "" }, ...variants]);
     };
 
     const removeVariant = (index: number) => {
         setVariants(variants.filter((_, i) => i !== index));
     };
 
-    const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "imageUrl" | "sku", value: string) => {
+    const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "minStock" | "imageUrl" | "sku", value: string) => {
         const newVariants = [...variants];
         newVariants[index] = { ...newVariants[index], [field]: value };
 
@@ -201,14 +201,14 @@ export default function NewProductPage() {
                         <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
                             <Plus className="h-3 w-3" /> Adicionar Tamanho
                         </Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={sortVariants} className="gap-1 ml-2">
+                        <Button type="button" variant="outline" size="sm" onClick={sortVariants} className="gap-1 ml-2">
                             Agrupar Cores
                         </Button>
                     </div>
 
                     <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
                         {variants.map((variant, index) => (
-                            <div key={index} className="flex flex-col gap-3 rounded-md border bg-white p-3 sm:flex-row sm:items-end">
+                            <div key={index} className="flex flex-col gap-3 rounded-md border bg-white p-3 sm:flex-row sm:items-end sm:flex-wrap">
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
                                     <div className="space-y-1 sm:w-28 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Tamanho</label>
@@ -234,8 +234,8 @@ export default function NewProductPage() {
                                         />
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
-                                    <div className="space-y-1 sm:w-20 sm:flex-none">
+                                <div className="flex flex-1 gap-3">
+                                    <div className="space-y-1 w-20 flex-none">
                                         <label className="text-xs font-medium text-gray-700">Qtd.</label>
                                         <input
                                             type="number"
@@ -246,8 +246,18 @@ export default function NewProductPage() {
                                             onChange={(e) => updateVariant(index, "stockQuantity", e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-1 sm:flex-1">
-                                        <label className="text-xs font-medium text-gray-700">SKU (Opcional)</label>
+                                    <div className="space-y-1 w-20 flex-none">
+                                        <label className="text-xs font-medium text-gray-700">Mínimo</label>
+                                        <input
+                                            type="number"
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
+                                            placeholder="1"
+                                            value={variant.minStock}
+                                            onChange={(e) => updateVariant(index, "minStock", e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1 flex-1 min-w-[100px]">
+                                        <label className="text-xs font-medium text-gray-700">SKU</label>
                                         <input
                                             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             placeholder="Auto"
@@ -297,9 +307,6 @@ export default function NewProductPage() {
 
                                                                     const filename = "public/" + Date.now() + "_" + sanitizedFileName;
 
-                                                                    // Upload direto via Frontend usando a chave ANON (pública)
-                                                                    // Isso respeita o RLS porque o usuário está autenticado na sessão do browser (se estiver usando Supabase Auth)
-                                                                    // Se não estiver usando Supabase Auth, a política deve ser 'public' ou 'anon', mas vamos testar.
                                                                     const { data, error } = await supabase.storage
                                                                         .from("uploads")
                                                                         .upload(filename, file, {
@@ -333,9 +340,10 @@ export default function NewProductPage() {
                                         type="button"
                                         variant="ghost"
                                         size="icon"
-                                        className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                                        className="text-red-400 hover:bg-red-50 hover:text-red-700 h-[38px] w-[38px] flex-none"
                                         onClick={() => removeVariant(index)}
                                         disabled={variants.length === 1}
+                                        title="Remover variante"
                                     >
                                         <Trash className="h-4 w-4" />
                                     </Button>

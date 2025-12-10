@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
         path === "/products/new" ||
         (path.startsWith("/products/") && path.endsWith("/edit"));
 
-    if (path.startsWith("/settings") || path.startsWith("/financeiro") || isProtectedProductRoute) {
+    if (path.startsWith("/settings") || path.startsWith("/financeiro") || path.startsWith("/admin") || isProtectedProductRoute) {
         if (role !== "OWNER") {
             // If seller tries to access restricted admin routes, redirect to POS
             if (role === "SELLER") {
@@ -40,5 +40,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/dashboard/:path*", "/products/:path*", "/pos/:path*", "/orders/:path*", "/settings/:path*", "/financeiro/:path*"],
+    matcher: ["/dashboard/:path*", "/products/:path*", "/pos/:path*", "/orders/:path*", "/settings/:path*", "/financeiro/:path*", "/admin/:path*"],
 };

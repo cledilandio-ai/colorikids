@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { variantId, quantity, unitCost, productId, size, color, imageUrl } = body;
+        const { variantId, quantity, unitCost, productId, size, color, imageUrl, minStock } = body;
 
         if (!quantity || unitCost === undefined) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
                         color: color || null,
                         imageUrl: imageUrl || null,
                         stockQuantity: 0, // Will be incremented below
+                        minStock: parseInt(minStock) || 1,
+                        lastRestockAt: new Date(), // New variant being stocked now
                         sku: `${size}-${color || 'STD'}-${Date.now().toString().slice(-4)}` // Simple auto-SKU
                     },
                     include: { product: true }

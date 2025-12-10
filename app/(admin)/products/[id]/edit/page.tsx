@@ -30,7 +30,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         gender: "",
     });
 
-    const [variants, setVariants] = useState<{ id?: string; size: string; color: string; stockQuantity: string; imageUrl?: string; sku?: string }[]>([]);
+    const [variants, setVariants] = useState<{ id?: string; size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([]);
 
     // New state for stock financial confirmation
     const [initialVariants, setInitialVariants] = useState<any[]>([]);
@@ -57,6 +57,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                         size: /^\d+$/.test(v.size) ? `${v.size} Anos` : v.size, // Normalize "14" to "14 Anos"
                         color: v.color || "",
                         stockQuantity: v.stockQuantity.toString(),
+                        minStock: (v.minStock || 1).toString(),
                         imageUrl: v.imageUrl || "",
                         sku: v.sku || "",
                     })).sort((a: any, b: any) => {
@@ -90,7 +91,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     }, [params.id]);
 
     const addVariant = () => {
-        setVariants([{ size: "", color: "", stockQuantity: "0", imageUrl: "" }, ...variants]);
+        setVariants([{ size: "", color: "", stockQuantity: "0", minStock: "1", imageUrl: "" }, ...variants]);
     };
 
     const removeVariant = (index: number) => {
@@ -133,7 +134,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         alert("Grade organizada e fotos sincronizadas por cor!");
     };
 
-    const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "imageUrl" | "sku", value: string) => {
+    const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "minStock" | "imageUrl" | "sku", value: string) => {
         const newVariants = [...variants];
         newVariants[index] = { ...newVariants[index], [field]: value };
 
@@ -261,7 +262,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     />
                     <Button
                         type="button"
-                        variant="destructive"
+                        variant="outline"
                         onClick={async () => {
                             if (!confirm("🛑 ATENÇÃO: Ao excluir este produto, ele será ARQUIVADO (oculto do site e listas), mas o histórico de vendas e estoque será preservado.\n\nDeseja realmente arquivar?")) return;
 
@@ -279,7 +280,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                 alert("Erro de conexão.");
                             }
                         }}
-                        className="gap-2"
+                        className="gap-2 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                     >
                         <Trash className="h-4 w-4" /> Excluir Produto
                     </Button>
@@ -379,20 +380,20 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                         <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
                             <Plus className="h-3 w-3" /> Adicionar Tamanho
                         </Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={sortVariants} className="gap-1 ml-2">
+                        <Button type="button" variant="outline" size="sm" onClick={sortVariants} className="gap-1 ml-2">
                             Organizar & Sync Fotos
                         </Button>
                     </div>
 
                     <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
                         {variants.map((variant, index) => (
-                            <div key={index} className="flex flex-col gap-3 rounded-md border bg-white p-3 sm:flex-row sm:items-end">
+                            <div key={index} className="flex flex-col gap-3 rounded-md border bg-white p-3 sm:flex-row sm:items-end sm:flex-wrap">
                                 <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
                                     <div className="space-y-1 sm:w-28 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Tamanho</label>
                                         <div className="relative flex items-center">
                                             <input
-                                                type="number"
+                                                type="text" // Change to text to allow "Anos" suffix visibility or handling
                                                 required
                                                 className="w-full rounded-md border border-gray-300 p-2 pr-12 text-sm focus:border-primary focus:outline-none bg-white h-[38px]"
                                                 placeholder="0"
@@ -404,22 +405,25 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                     </div>
                                     <div className="space-y-1 sm:w-32 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Cor</label>
-                                        <input
-                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
-                                            value={variant.color}
-                                            onChange={(e) => updateVariant(index, "color", e.target.value.toUpperCase())}
-                                            placeholder="Ex: AZUL"
-                                            list={`colors-${index}`}
-                                        />
-                                        <datalist id={`colors-${index}`}>
-                                            {Array.from(new Set(variants.map(v => v.color).filter(Boolean))).map(color => (
-                                                <option key={color} value={color} />
-                                            ))}
-                                        </datalist>
+                                        <div className="relative">
+                                            <input
+                                                className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
+                                                value={variant.color}
+                                                onChange={(e) => updateVariant(index, "color", e.target.value)}
+                                                placeholder="Ex: Azul"
+                                                list={`colors-${index}`}
+                                            />
+                                            <datalist id={`colors-${index}`}>
+                                                {/* Suggest existing colors */}
+                                                {Array.from(new Set(variants.map(v => v.color).filter(c => c && c !== variant.color))).map(c => (
+                                                    <option key={c} value={c} />
+                                                ))}
+                                            </datalist>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-1 sm:gap-3">
-                                    <div className="space-y-1 sm:w-20 sm:flex-none">
+                                <div className="flex flex-1 gap-3">
+                                    <div className="space-y-1 w-20 flex-none">
                                         <label className="text-xs font-medium text-gray-700">Qtd.</label>
                                         <input
                                             type="number"
@@ -430,8 +434,18 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                             onChange={(e) => updateVariant(index, "stockQuantity", e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-1 sm:flex-1">
-                                        <label className="text-xs font-medium text-gray-700">SKU (Opcional)</label>
+                                    <div className="space-y-1 w-20 flex-none">
+                                        <label className="text-xs font-medium text-gray-700">Mínimo</label>
+                                        <input
+                                            type="number"
+                                            className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
+                                            placeholder="1"
+                                            value={variant.minStock}
+                                            onChange={(e) => updateVariant(index, "minStock", e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1 flex-1 min-w-[100px]">
+                                        <label className="text-xs font-medium text-gray-700">SKU</label>
                                         <input
                                             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             placeholder="Auto"
@@ -474,17 +488,16 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                                     }
 
                                                                     const sanitizedFileName = file.name
-                                                                        .normalize('NFD') // Decompose combined characters
-                                                                        .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
-                                                                        .replace(/[^a-zA-Z0-9.-]/g, "_"); // Replace invalid chars with underscore
+                                                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                                                                        .replace(/\s+/g, '-') // Espaços para hífens
+                                                                        .replace(/[^a-zA-Z0-9.-]/g, "") // Remove tudo que não for letra, número, ponto ou hífen
+                                                                        .toLowerCase(); // Tudo minúsculo
 
                                                                     const filename = "public/" + Date.now() + "_" + sanitizedFileName;
 
                                                                     const { data, error } = await supabase.storage
                                                                         .from("uploads")
-                                                                        .upload(filename, file, {
-                                                                            upsert: false
-                                                                        });
+                                                                        .upload(filename, file, { upsert: false });
 
                                                                     if (error) {
                                                                         console.error("Erro no upload:", error);
@@ -509,16 +522,30 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                             )}
                                         </div>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                                        onClick={() => removeVariant(index)}
-                                        disabled={variants.length === 1}
-                                    >
-                                        <Trash className="h-4 w-4" />
-                                    </Button>
+                                    {variant.stockMovements?.some(m => true) || variant.inventoryLogs?.some(l => true) ? (
+                                        // Se tem histórico, evitar excluir ou avisar
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-gray-400 hover:text-gray-600 h-[38px] w-[38px] flex-none"
+                                            title="Esta variante tem histórico e não pode ser removida (apenas zerada)"
+                                            disabled
+                                        >
+                                            <Trash className="h-3 w-3" />
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-400 hover:bg-red-50 hover:text-red-700 h-[38px] w-[38px] flex-none"
+                                            onClick={() => removeVariant(index)}
+                                            title="Remover variante"
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         ))}

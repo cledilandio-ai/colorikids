@@ -41,6 +41,9 @@ model ProductVariant {
   size          String
   color         String?
   stockQuantity Int      @default(0)
+  minStock      Int      @default(1) // Estoque mínimo de segurança
+  lastSoldAt    DateTime?            // Data da última venda (Liquidez)
+  lastRestockAt DateTime?            // Data da última reposição (Idade do Lote)
   sku           String?  @unique
   imageUrl      String?
   inventoryLogs InventoryLog[]

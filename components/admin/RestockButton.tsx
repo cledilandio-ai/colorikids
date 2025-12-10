@@ -43,6 +43,7 @@ export function RestockButton({ products = [], preSelectedProduct }: RestockButt
         color: string;
         qty: string;
         cost: string;
+        minStock: string;
         image: string;
     }>>([]);
 
@@ -63,6 +64,7 @@ export function RestockButton({ products = [], preSelectedProduct }: RestockButt
             color: "",
             qty: "",
             cost: "",
+            minStock: "1",
             image: ""
         }]);
     };
@@ -187,6 +189,7 @@ export function RestockButton({ products = [], preSelectedProduct }: RestockButt
                         productId: selectedProduct.id,
                         quantity: nv.qty,
                         unitCost: nv.cost,
+                        minStock: nv.minStock,
                         size: nv.size,
                         color: nv.color,
                         imageUrl: nv.image
@@ -479,6 +482,18 @@ export function RestockButton({ products = [], preSelectedProduct }: RestockButt
                                                                 placeholder="0"
                                                                 value={nv.qty}
                                                                 onChange={e => updateNewVariantRow(nv.id, 'qty', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-1">
+                                                            <label className="text-xs text-gray-500">Mínimo</label>
+                                                            <input
+                                                                type="number"
+                                                                className="w-full rounded border-gray-300 p-1.5 text-sm"
+                                                                placeholder="1"
+                                                                value={nv.minStock} // TypeScript might complain if I don't update the interface above too? No, it's inferred from state, but state def was updated in prev step? Just to be safe I'll assume state updated.
+                                                                // Wait, I updated the initialState object in previous step, but I should check the Type Definition if separate.
+                                                                // Yes, lines 40-47 define the type. I must update that too.
+                                                                onChange={e => updateNewVariantRow(nv.id, 'minStock', e.target.value)}
                                                             />
                                                         </div>
                                                         <div className="sm:col-span-1">
