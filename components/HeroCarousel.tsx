@@ -49,18 +49,33 @@ export function HeroCarousel({ images }: HeroCarouselProps) {
 
                 const Content = () => (
                     <>
-                        <img
-                            src={item.url}
-                            alt={`Slide ${index + 1}`}
-                            className="h-full w-full object-cover"
-                        />
+                        {/* Desktop: Background Blurred Layer (Hidden on Mobile) */}
+                        <div className="absolute inset-0 overflow-hidden hidden md:block">
+                            <img
+                                src={item.url}
+                                alt=""
+                                className="h-full w-full object-cover blur-xl scale-110 opacity-60"
+                            />
+                        </div>
+
+                        {/* Foreground Main Image (Cover on Mobile, Contain on Desktop) */}
+                        <div className="relative h-full w-full z-10 flex items-center justify-center">
+                            <img
+                                src={item.url}
+                                alt={`Slide ${index + 1}`}
+                                className="h-full w-full object-cover md:object-contain"
+                            />
+                        </div>
+
                         {/* Overlay CTA for Instagram Link */}
                         {showOverlay && (
-                            <div className="absolute inset-0 flex items-end justify-center pb-16 bg-black/10 transition-colors hover:bg-black/20">
-                                <div className={`flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-lg backdrop-blur-sm transition-all transform ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-                                    } duration-700 delay-300`}>
-                                    <Instagram className="h-5 w-5 text-pink-600" />
-                                    <span className="text-sm font-semibold text-gray-800">Click para ver no instagram</span>
+                            <div className="absolute inset-0 z-20 flex items-end justify-center pb-16 transition-colors hover:bg-black/10 pointer-events-none">
+                                <div className="pointer-events-auto">
+                                    <div className={`flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-lg backdrop-blur-sm transition-all transform ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+                                        } duration-700 delay-300`}>
+                                        <Instagram className="h-5 w-5 text-pink-600" />
+                                        <span className="text-sm font-semibold text-gray-800">Click para ver no instagram</span>
+                                    </div>
                                 </div>
                             </div>
                         )}
