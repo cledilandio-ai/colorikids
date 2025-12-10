@@ -92,6 +92,10 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
         ? products.reduce((acc, p) => acc + (p.price || 0), 0) / products.length
         : 0;
 
+    // Calcular Margem Média Unitária
+    const avgMarginValue = avgUnitPrice - avgUnitCost;
+    const avgMarginPercent = avgUnitPrice > 0 ? (avgMarginValue / avgUnitPrice) * 100 : 0;
+
     const sortedProducts = [...products].filter(p => {
         if (activeFilter === 'all') return true;
         if (activeFilter === 'low') return p.status === 'low';
@@ -176,8 +180,11 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                             <span className="text-lg font-bold text-purple-700">{formatCurrency(avgUnitCost)}</span>
                         </div>
                         <div className="flex justify-between items-end">
-                            <span className="text-xs text-muted-foreground">Venda Média:</span>
-                            <span className="text-lg font-bold text-purple-600">{formatCurrency(avgUnitPrice)}</span>
+                            <span className="text-xs text-muted-foreground">Margem Contrib. Média:</span>
+                            <div className="text-right">
+                                <span className="text-lg font-bold text-green-600">{formatCurrency(avgMarginValue)}</span>
+                                <span className="text-xs font-medium text-green-700 ml-1">({avgMarginPercent.toFixed(0)}%)</span>
+                            </div>
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t text-center flex items-center justify-center gap-1">
                             {viewMode === 'unitary' ?
