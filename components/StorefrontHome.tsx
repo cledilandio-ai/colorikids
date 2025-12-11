@@ -3,9 +3,10 @@
 import { useState, useMemo } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/Navbar";
 import { useSettings } from "@/context/SettingsContext";
-import { Instagram, MessageCircle } from "lucide-react";
+import { Instagram, MessageCircle, Search } from "lucide-react";
 import { HeroCarousel } from "@/components/HeroCarousel";
 
 interface Product {
@@ -16,7 +17,7 @@ interface Product {
     imageUrl: string | null;
     category: string | null;
     gender: string | null;
-    variants: { id: string; imageUrl: string | null }[];
+    variants: { id: string; imageUrl: string | null; size: string; price?: number }[];
 }
 
 interface StorefrontHomeProps {
@@ -26,6 +27,7 @@ interface StorefrontHomeProps {
 export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
     const [selectedGender, setSelectedGender] = useState<string>("Todos");
     const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
+    const [searchQuery, setSearchQuery] = useState("");
 
     const categories = useMemo(() => {
         const cats = new Set(initialProducts.map(p => p.category).filter((c): c is string => !!c));
@@ -36,9 +38,10 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
         return initialProducts.filter(product => {
             const matchGender = selectedGender === "Todos" || product.gender === selectedGender;
             const matchCategory = selectedCategory === "Todos" || product.category === selectedCategory;
-            return matchGender && matchCategory;
+            const matchSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchGender && matchCategory && matchSearch;
         });
-    }, [initialProducts, selectedGender, selectedCategory]);
+    }, [initialProducts, selectedGender, selectedCategory, searchQuery]);
 
     const { whatsapp, instagram, featuredImageUrls } = useSettings();
 
@@ -69,7 +72,18 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
                         Nossa Coleção
                     </h2>
 
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                        {/* Search Input */}
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Buscar produtos..."
+                                className="pl-9"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+
                         {/* Gender Filter */}
                         <div className="flex rounded-md border bg-white p-1">
                             {["Todos", "Menina", "Menino", "Unissex"].map((gender) => (
@@ -90,7 +104,7 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
 
                         {/* Category Filter */}
                         <select
-                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none h-10"
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
                         >

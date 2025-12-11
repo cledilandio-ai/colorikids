@@ -10,14 +10,14 @@ export async function GET(request: Request) {
     try {
         const where = search ? {
             OR: [
-                { name: { contains: search } },
-                { cpf: { contains: search } },
-                { phone: { contains: search } }
+                { name: { contains: search, mode: "insensitive" } },
+                { cpf: { contains: search, mode: "insensitive" } },
+                { phone: { contains: search, mode: "insensitive" } }
             ]
         } : {};
 
         const customers = await prisma.customer.findMany({
-            where,
+            where: where as any, // "mode" insentive requires casting or specific prisma types, simplifying here
             orderBy: { name: "asc" },
             take: 20
         });
@@ -44,5 +44,25 @@ export async function POST(request: Request) {
         return NextResponse.json(customer);
     } catch (error) {
         return NextResponse.json({ error: "Failed to create customer" }, { status: 500 });
+    }
+}
+
+export async function PUT(request: Request) {
+    try {
+        const body = await request.json();
+        const { id, name, phone, cpf, email, address } = body;
+
+        if (!id || !name) {
+            return NextResponse.json({ error: "ID and Name are required" }, { status: 400 });
+        }
+
+        const customer = await prisma.customer.update({
+            where: { id },
+            data: { name, phone, cpf, email, address }
+        });
+
+        return NextResponse.json(customer);
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
     }
 }

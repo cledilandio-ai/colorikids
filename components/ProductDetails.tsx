@@ -25,7 +25,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     const router = useRouter();
     const [selectedColor, setSelectedColor] = useState<string>("");
     const [selectedSize, setSelectedSize] = useState<string>("");
-    const { addToCart, toggleCart } = useCart();
+    const { addToCart, toggleCart, cart } = useCart();
     const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
     // Group variants by color
@@ -76,6 +76,15 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     const handleAddToCart = () => {
         if (!selectedVariant) {
             alert("Por favor, selecione uma cor e um tamanho.");
+            return;
+        }
+
+        // Stock Validation
+        const currentQtyInCart = cart.find(item => item.variantId === selectedVariant.id)?.qty || 0;
+        const availableStock = selectedVariant.stockQuantity || 0;
+
+        if (currentQtyInCart + 1 > availableStock) {
+            alert(`Estoque insuficiente! Disponível: ${availableStock} un.`);
             return;
         }
 

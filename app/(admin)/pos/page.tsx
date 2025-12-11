@@ -250,6 +250,16 @@ export default function POSPage() {
     const handleProductClick = (product: any) => setSelectedProduct(product);
     const addToCart = (variant: any) => {
         if (!selectedProduct) return;
+
+        // Check stock availability
+        const currentQty = cart.find((p) => p.variantId === variant.id)?.qty || 0;
+        const availableStock = variant.stockQuantity || 0;
+
+        if (currentQty + 1 > availableStock) {
+            alert(`Estoque insuficiente! Disponível: ${availableStock} un.`);
+            return;
+        }
+
         setCart((prev) => {
             const existing = prev.find((p) => p.variantId === variant.id);
             if (existing) return prev.map((p) => (p.variantId === variant.id ? { ...p, qty: p.qty + 1 } : p));

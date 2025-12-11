@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabaseClient";
 export default function NewProductPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [priceError, setPriceError] = useState("");
 
     const [formData, setFormData] = useState({
         name: "",
@@ -23,6 +24,30 @@ export default function NewProductPage() {
     const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([
         { size: "2 Anos", color: "Branco", stockQuantity: "10", minStock: "1", imageUrl: "" },
     ]);
+
+    const validatePrices = () => {
+        const safeParse = (val: string) => {
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(",", ".")) || 0;
+        };
+
+        const sellPrice = safeParse(formData.basePrice);
+        const costPrice = safeParse(formData.costPrice);
+
+        // Reset error if fields are empty or zero (during typing)
+        if (sellPrice === 0 || costPrice === 0) {
+            setPriceError("");
+            return true;
+        }
+
+        if (sellPrice < costPrice) {
+            setPriceError("O preço de venda não pode ser menor que o preço de custo.");
+            return false;
+        }
+
+        setPriceError("");
+        return true;
+    };
 
     const addVariant = () => {
         setVariants([{ size: "", color: "", stockQuantity: "0", minStock: "1", imageUrl: "" }, ...variants]);
@@ -69,6 +94,12 @@ export default function NewProductPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validatePrices()) {
+            alert("Corrija os erros de preço antes de salvar.");
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -170,29 +201,42 @@ export default function NewProductPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Preço de Custo (R$)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full rounded-md border p-2 focus:outline-none focus:ring-1 ${priceError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 focus:border-primary focus:ring-primary"}`}
+                            placeholder="0.00"
+                            value={formData.costPrice}
+                            onChange={(e) => {
+                                setFormData({ ...formData, costPrice: e.target.value });
+                                setPriceError(""); // Clear error on change to avoid flickering or annoying persistent error
+                            }}
+                            onBlur={validatePrices}
+                        />
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Preço de Venda (R$)</label>
                         <input
                             type="number"
                             step="0.01"
                             required
-                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            className={`w-full rounded-md border p-2 focus:outline-none focus:ring-1 ${priceError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 focus:border-primary focus:ring-primary"}`}
                             placeholder="0.00"
                             value={formData.basePrice}
-                            onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Preço de Custo (R$)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                            placeholder="0.00"
-                            value={formData.costPrice}
-                            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                            onChange={(e) => {
+                                setFormData({ ...formData, basePrice: e.target.value });
+                                setPriceError("");
+                            }}
+                            onBlur={validatePrices}
                         />
                     </div>
                 </div>
+                {priceError && (
+                    <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+                        ⚠️ {priceError}
+                    </div>
+                )}
 
 
                 <div className="space-y-2">
@@ -357,7 +401,7 @@ export default function NewProductPage() {
                     <Link href="/products">
                         <Button type="button" variant="ghost">Cancelar</Button>
                     </Link>
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={loading || !!priceError}>
                         {loading ? "Salvando..." : "Salvar Produto"}
                     </Button>
                 </div>

@@ -20,6 +20,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
+    const [priceError, setPriceError] = useState("");
+    const [showFinancialDialog, setShowFinancialDialog] = useState(false);
+    const [financialAmount, setFinancialAmount] = useState("");
+    const [stockDifference, setStockDifference] = useState<{ quantity: number, cost: number }>({ quantity: 0, cost: 0 });
 
     const [formData, setFormData] = useState({
         name: "",
@@ -30,13 +34,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         gender: "",
     });
 
-    const [variants, setVariants] = useState<{ id?: string; size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([]);
+    const [variants, setVariants] = useState<{ id?: string; size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string; stockMovements?: any[]; inventoryLogs?: any[] }[]>([]);
 
     // New state for stock financial confirmation
     const [initialVariants, setInitialVariants] = useState<any[]>([]);
-    const [showFinancialDialog, setShowFinancialDialog] = useState(false);
-    const [stockDifference, setStockDifference] = useState<{ quantity: number, cost: number }>({ quantity: 0, cost: 0 });
-    const [financialAmount, setFinancialAmount] = useState("");
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -60,6 +61,8 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                         minStock: (v.minStock || 1).toString(),
                         imageUrl: v.imageUrl || "",
                         sku: v.sku || "",
+                        stockMovements: v.stockMovements,
+                        inventoryLogs: v.inventoryLogs,
                     })).sort((a: any, b: any) => {
                         const colorCompare = a.color.localeCompare(b.color);
                         if (colorCompare !== 0) return colorCompare;
@@ -172,6 +175,30 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         setVariants(newVariants);
     };
 
+    const validatePrices = () => {
+        const safeParse = (val: string) => {
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(",", ".")) || 0;
+        };
+
+        const sellPrice = safeParse(formData.basePrice);
+        const costPrice = safeParse(formData.costPrice);
+
+        // Reset error if fields are empty or zero (during typing)
+        if (sellPrice === 0 || costPrice === 0) {
+            setPriceError("");
+            return true;
+        }
+
+        if (sellPrice < costPrice) {
+            setPriceError(`O preço de venda (R$ ${sellPrice}) não pode ser menor que o preço de custo (R$ ${costPrice}).`);
+            return false;
+        }
+
+        setPriceError("");
+        return true;
+    };
+
     const calculateStockDifference = () => {
         const initialTotal = initialVariants.reduce((acc, v) => acc + parseInt(v.stockQuantity || "0"), 0);
         const currentTotal = variants.reduce((acc, v) => acc + parseInt(v.stockQuantity || "0"), 0);
@@ -180,6 +207,28 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
     const handlePreSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validatePrices()) {
+            // Error is already set by validatePrices, just alert for emphasis if needed or just return
+            // alert("Corrija os erros de preço antes de salvar."); // Optional, maybe just letting the UI show it is enough
+            return;
+        }
+
+        // Debugging values
+
+        // Debugging values
+        console.log("Validating Prices (Edit):", {
+            base: formData.basePrice,
+            cost: formData.costPrice
+        });
+
+        const safeParse = (val: string) => {
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(",", ".")) || 0;
+        };
+        // Validation moved to validatePrices called above
+
+
         const difference = calculateStockDifference();
 
         if (difference > 0) {
@@ -350,29 +399,42 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Preço de Custo (R$)</label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            className={`w-full rounded-md border p-2 focus:outline-none focus:ring-1 ${priceError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 focus:border-primary focus:ring-primary"}`}
+                            placeholder="0.00"
+                            value={formData.costPrice}
+                            onChange={(e) => {
+                                setFormData({ ...formData, costPrice: e.target.value });
+                                setPriceError("");
+                            }}
+                            onBlur={validatePrices}
+                        />
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Preço de Venda (R$)</label>
                         <input
                             type="number"
                             step="0.01"
                             required
-                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            className={`w-full rounded-md border p-2 focus:outline-none focus:ring-1 ${priceError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 focus:border-primary focus:ring-primary"}`}
                             placeholder="0.00"
                             value={formData.basePrice}
-                            onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Preço de Custo (R$)</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                            placeholder="0.00"
-                            value={formData.costPrice}
-                            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                            onChange={(e) => {
+                                setFormData({ ...formData, basePrice: e.target.value });
+                                setPriceError("");
+                            }}
+                            onBlur={validatePrices}
                         />
                     </div>
                 </div>
+                {priceError && (
+                    <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 border border-red-200">
+                        ⚠️ {priceError}
+                    </div>
+                )}
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -556,7 +618,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                     <Link href="/products">
                         <Button type="button" variant="outline">Voltar / Sair</Button>
                     </Link>
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={loading || !!priceError}>
                         {loading ? "Salvando..." : "Salvar Alterações"}
                     </Button>
                 </div>

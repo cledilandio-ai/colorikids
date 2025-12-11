@@ -128,7 +128,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                         <Printer className="h-4 w-4" /> Imprimir
                     </Button>
                     <Button
-                        variant="secondary"
+                        variant="ghost"
                         onClick={() => setShowReturnModal(true)}
                         className="gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200"
                     >

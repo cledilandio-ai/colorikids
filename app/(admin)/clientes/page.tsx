@@ -28,6 +28,7 @@ export default function CustomersPage() {
         email: "",
         address: ""
     });
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchCustomers();
@@ -53,19 +54,23 @@ export default function CustomersPage() {
         setIsSaving(true);
 
         try {
+            const method = editingId ? "PUT" : "POST";
+            const body = editingId ? { ...formData, id: editingId } : formData;
+
             const res = await fetch("/api/customers", {
-                method: "POST",
+                method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(body)
             });
 
             if (res.ok) {
                 setShowModal(false);
                 setFormData({ name: "", cpf: "", phone: "", email: "", address: "" });
+                setEditingId(null);
                 fetchCustomers();
-                alert("Cliente cadastrado com sucesso!");
+                alert(editingId ? "Cliente atualizado com sucesso!" : "Cliente cadastrado com sucesso!");
             } else {
-                alert("Erro ao cadastrar cliente.");
+                alert("Erro ao salvar cliente.");
             }
         } catch (error) {
             console.error(error);
@@ -75,11 +80,48 @@ export default function CustomersPage() {
         }
     };
 
+    const handleEdit = (customer: Customer) => {
+        setFormData({
+            name: customer.name,
+            cpf: customer.cpf || "",
+            phone: customer.phone || "",
+            email: customer.email || "",
+            address: customer.address || ""
+        });
+        setEditingId(customer.id);
+        setShowModal(true);
+    };
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!confirm(`Tem certeza que deseja excluir o cliente "${name}"?`)) return;
+
+        try {
+            // Check if customer has orders or debts first? 
+            // Ideally backend handles this constraint, but for now we just try delete (if implemented) or just warn.
+            // Since we didn't implement DELETE in route yet, let's just alert strictly or implement it now.
+            // Wait, I missed implementing DELETE in the plan/backend.
+            // User didn't ask for delete, but "Edit" usually implies full management.
+            // I'll stick to Edit for now as requested by user -> "não tem como editar".
+            // Adding Delete button for completeness but disabling it or simple alert for now if method missing?
+            // Actually, I should probably implement DELETE in backend too if I add the button.
+            // For now, let's just add the Edit button as requested.
+            alert("Exclusão não implementada nesta versão.");
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const openNewCustomerModal = () => {
+        setFormData({ name: "", cpf: "", phone: "", email: "", address: "" });
+        setEditingId(null);
+        setShowModal(true);
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold text-gray-800">Clientes</h1>
-                <Button onClick={() => setShowModal(true)} className="gap-2">
+                <Button onClick={openNewCustomerModal} className="gap-2">
                     <Plus className="h-4 w-4" /> Novo Cliente
                 </Button>
             </div>
@@ -112,8 +154,13 @@ export default function CustomersPage() {
                                     <h3 className="font-bold text-gray-900 text-lg line-clamp-1">{customer.name}</h3>
                                     {customer.cpf && <p className="text-sm text-gray-500 font-mono">CPF: {customer.cpf}</p>}
                                 </div>
-                                <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
-                                    <User className="h-5 w-5" />
+                                <div className="flex gap-2">
+                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(customer)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-50">
+                                        <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                                        <User className="h-5 w-5" />
+                                    </div>
                                 </div>
                             </div>
 
@@ -147,7 +194,7 @@ export default function CustomersPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
                         <div className="mb-6 flex items-center justify-between">
-                            <h2 className="text-2xl font-bold text-gray-900">Novo Cliente</h2>
+                            <h2 className="text-2xl font-bold text-gray-900">{editingId ? "Editar Cliente" : "Novo Cliente"}</h2>
                             <button onClick={() => setShowModal(false)}><X className="h-6 w-6 text-gray-500 hover:text-gray-700" /></button>
                         </div>
 
@@ -210,7 +257,7 @@ export default function CustomersPage() {
                                     Cancelar
                                 </Button>
                                 <Button type="submit" className="flex-1" disabled={isSaving}>
-                                    {isSaving ? "Salvando..." : "Salvar Cliente"}
+                                    {isSaving ? "Salvando..." : (editingId ? "Atualizar Cliente" : "Salvar Cliente")}
                                 </Button>
                             </div>
                         </form>
