@@ -51,7 +51,8 @@ export function FinanceDashboardClient({ initialTransactions }: { initialTransac
                 </Button>
             </div>
 
-            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+            {/* Desktop Table */}
+            <div className="hidden md:block rounded-xl border bg-white shadow-sm overflow-hidden">
                 <table className="w-full text-left text-sm">
                     <thead className="bg-gray-50 text-gray-500">
                         <tr>
@@ -90,6 +91,34 @@ export function FinanceDashboardClient({ initialTransactions }: { initialTransac
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Mobile Cards (Visible only on mobile) */}
+            <div className="md:hidden space-y-4">
+                {transactions.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">Nenhuma transação registrada.</div>
+                ) : (
+                    transactions.map((t) => (
+                        <div key={t.id} className="bg-white rounded-xl shadow-sm border p-4">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-sm text-gray-500">
+                                    {new Date(t.date).toLocaleDateString('pt-BR')}
+                                </span>
+                                <span className={`font-bold ${t.type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
+                                    {t.type === 'IN' ? '+' : '-'} {t.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                            </div>
+                            <div className="font-medium text-gray-900 mb-2">
+                                {t.description}
+                            </div>
+                            <div className="flex justify-end">
+                                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                    {CATEGORY_LABELS[t.category as keyof typeof CATEGORY_LABELS] || t.category}
+                                </span>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
 
             <NewTransactionModal

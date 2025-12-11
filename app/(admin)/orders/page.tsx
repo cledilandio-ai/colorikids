@@ -25,7 +25,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: { sta
         <div className="space-y-6">
             <h1 className="text-3xl font-bold text-gray-800">Pedidos</h1>
 
-            <div className="rounded-xl border bg-white shadow-sm">
+            {/* Desktop Table */}
+            <div className="hidden md:block rounded-xl border bg-white shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-500">
@@ -99,6 +100,64 @@ export default async function OrdersPage({ searchParams }: { searchParams: { sta
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Mobile Cards (Visible only on mobile) */}
+            <div className="md:hidden space-y-4">
+                {orders.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">Nenhum pedido encontrado.</div>
+                ) : (
+                    orders.map((order) => (
+                        <div key={order.id} className="bg-white rounded-xl shadow-sm border p-4">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <Link href={`/orders/${order.id}`} className="font-bold text-gray-900 text-lg hover:text-primary block">
+                                        {order.customerName}
+                                    </Link>
+                                    <span className="text-xs text-gray-500 block mt-1">
+                                        {format(order.createdAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                    </span>
+                                </div>
+                                <span
+                                    className={`rounded-full px-2 py-1 text-xs font-semibold ${statusColors[order.status as keyof typeof statusColors] || "bg-gray-100"
+                                        }`}
+                                >
+                                    {order.status === "COMPLETED" ? "Concluído" :
+                                        order.status === "PENDING" ? "Pendente" :
+                                            order.status === "CANCELLED" ? "Cancelado" : order.status}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-2 border-t border-b border-gray-50 my-2">
+                                <div className="text-sm">
+                                    <span className="text-gray-500">Total:</span>
+                                    <span className="ml-2 font-bold text-gray-900">R$ {order.total.toFixed(2)}</span>
+                                </div>
+                                <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">
+                                    {order.type}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-center mt-3">
+                                <span className="text-xs text-gray-500">
+                                    {(() => {
+                                        try {
+                                            const items = JSON.parse(order.items);
+                                            return Array.isArray(items) ? `${items.length} itens` : "Detalhes...";
+                                        } catch {
+                                            return order.items;
+                                        }
+                                    })()}
+                                </span>
+                                <Link href={`/orders/${order.id}`}>
+                                    <Button variant="outline" size="sm" className="w-full">
+                                        Ver Detalhes
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

@@ -55,7 +55,8 @@ export function ProductList({ initialProducts }: ProductListProps) {
                 </div>
             </div>
 
-            <div className="rounded-xl border bg-white shadow-sm">
+            {/* Desktop Table */}
+            <div className="hidden md:block rounded-xl border bg-white shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-500">
@@ -102,6 +103,44 @@ export function ProductList({ initialProducts }: ProductListProps) {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Mobile Cards (Visible only on mobile) */}
+            <div className="md:hidden space-y-4">
+                {filteredProducts.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                        {searchTerm ? "Nenhum produto encontrado na busca." : "Nenhum produto cadastrado."}
+                    </div>
+                ) : (
+                    filteredProducts.map((product) => (
+                        <div key={product.id} className="bg-white rounded-xl shadow-sm border p-4">
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className="font-bold text-gray-900 text-lg">{product.name}</h3>
+                                <ProductActions productId={product.id} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                                <div>
+                                    <span className="text-gray-500 block">Preço</span>
+                                    <span className="font-bold text-gray-900">R$ {product.basePrice.toFixed(2)}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500 block">Custo</span>
+                                    <span className="font-medium text-gray-700">R$ {(product.costPrice || 0).toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
+                                <div className="flex flex-col">
+                                    <span className="text-gray-500 text-xs">Estoque Total</span>
+                                    <span className="font-medium">{product.variants.reduce((acc, v) => acc + v.stockQuantity, 0)} un</span>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-gray-500 text-xs">Variações</span>
+                                    <span className="font-medium">{product.variants.length}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

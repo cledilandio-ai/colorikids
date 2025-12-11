@@ -10,9 +10,7 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-
+    const handleLogin = async () => {
         try {
             const res = await fetch("/api/auth/login", {
                 method: "POST",
@@ -48,15 +46,21 @@ export default function LoginPage() {
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            handleLogin();
+        }
+    };
+
     return (
         <main className="min-h-screen bg-background">
             <Navbar />
-            <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
+            <div className="flex min-h-[calc(10vh-64px)] items-center justify-center p-4">
                 <div className="w-full max-w-md rounded-xl border bg-white p-8 shadow-lg">
                     <h1 className="mb-6 text-center text-2xl font-bold text-primary">
                         Acesso Restrito
                     </h1>
-                    <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-4" onKeyDown={handleKeyDown}>
                         <div>
                             <label className="mb-1 block text-sm font-medium text-gray-700">
                                 Email
@@ -83,10 +87,10 @@ export default function LoginPage() {
                                 required
                             />
                         </div>
-                        <Button type="submit" className="w-full">
+                        <Button onClick={handleLogin} className="w-full">
                             Entrar
                         </Button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </main>

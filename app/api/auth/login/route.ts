@@ -16,7 +16,8 @@ export async function POST(request: Request) {
 
         // 2. Se o usuário não existir
         if (!user) {
-            return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
+            console.log("Login failed: User not found", normalizedEmail);
+            return NextResponse.json({ success: false, error: "DEBUG: Usuário não encontrado no banco." }, { status: 401 });
         }
 
         // 3. Compara a senha
@@ -24,7 +25,8 @@ export async function POST(request: Request) {
 
         // 4. Se a senha não bater
         if (!passwordMatch) {
-            return NextResponse.json({ success: false, error: "Credenciais inválidas" }, { status: 401 });
+            console.log("Login failed: Password mismatch for", normalizedEmail);
+            return NextResponse.json({ success: false, error: "DEBUG: Senha incorreta." }, { status: 401 });
         }
 
         // 5. Se chegou aqui, deu tudo certo! Retorna os dados (sem a senha)

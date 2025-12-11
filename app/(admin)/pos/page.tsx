@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, Trash, CreditCard, Banknote, QrCode, X, User, Calendar, Copy, Check, Lock, Send } from "lucide-react";
+import { Search, Trash, CreditCard, Banknote, QrCode, X, User, Calendar, Copy, Check, Lock, Send, ShoppingCart } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useSettings } from "@/context/SettingsContext";
@@ -62,6 +62,10 @@ export default function POSPage() {
     const [showPixModal, setShowPixModal] = useState(false);
     const [pixPayload, setPixPayload] = useState("");
     const [copied, setCopied] = useState(false);
+
+    // Mobile POS State
+    const [showPostAddAction, setShowPostAddAction] = useState(false);
+    const [showMobileCart, setShowMobileCart] = useState(false);
 
     // Success Modal State
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -266,6 +270,11 @@ export default function POSPage() {
             return [...prev, { id: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.basePrice, qty: 1, variantId: variant.id, variantName: `${variant.size} ${variant.color ? `- ${variant.color}` : ""}`, sku: variant.sku }];
         });
         setSelectedProduct(null);
+
+        // Mobile UX: Show prompts
+        if (window.innerWidth < 1024) { // Updated to match LG breakpoint
+            setShowPostAddAction(true);
+        }
     };
     const removeFromCart = (variantId: string) => setCart((prev) => prev.filter((p) => p.variantId !== variantId));
     const total = cart.reduce((acc, item) => acc + item.price * item.qty, 0);
@@ -428,7 +437,7 @@ export default function POSPage() {
                         <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                         <input className="w-full rounded-xl border border-gray-300 p-3 pl-10 text-lg focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Buscar produto..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
                     </div>
-                    <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-4 md:grid-cols-3 lg:grid-cols-4 pr-2">
+                    <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-24 lg:pb-4 md:grid-cols-3 lg:grid-cols-4 pr-2">
                         {filteredProducts.map((product) => (
                             <button key={product.id} onClick={() => handleProductClick(product)} className="group flex flex-col items-start justify-between overflow-hidden rounded-xl border bg-white text-left shadow-sm hover:border-primary hover:bg-blue-50">
                                 <div className="relative h-32 w-full overflow-hidden bg-gray-100">
@@ -439,12 +448,83 @@ export default function POSPage() {
                         ))}
                     </div>
                 </div>
-                <div className="flex w-96 flex-col rounded-xl border bg-white shadow-lg">
+                {/* Desktop Cart */}
+                <div className="hidden lg:flex w-96 flex-col rounded-xl border bg-white shadow-lg">
                     <div className="border-b p-4"><h2 className="text-xl font-bold text-gray-800">Carrinho</h2></div>
                     <div className="flex-1 overflow-y-auto p-4">{cart.length === 0 ? <div className="flex items-center justify-center h-full text-gray-400">Vazio</div> : cart.map(i => <div key={i.variantId} className="flex justify-between p-2 bg-gray-50 mb-2 rounded"><div><div className="font-medium">{i.name}</div><div className="text-xs text-gray-500">{i.variantName}</div></div><div className="flex items-center gap-2 font-bold">R$ {(i.price * i.qty).toFixed(2)} <button onClick={() => removeFromCart(i.variantId)} className="text-red-500"><Trash className="w-4 h-4" /></button></div></div>)}</div>
                     <div className="border-t bg-gray-50 p-6"><div className="flex justify-between mb-4"><span className="text-lg font-medium">Total</span><span className="text-3xl font-bold text-primary">R$ {total.toFixed(2)}</span></div><Button className="w-full h-12" onClick={() => { setPayments([]); setShowCheckoutModal(true); }} disabled={cart.length === 0}>Ir para Pagamento</Button></div>
                 </div>
             </div>
+
+            {/* Mobile Bottom Bar */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex items-center justify-between z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                <div className="flex flex-col">
+                    <span className="text-sm text-gray-500">Total</span>
+                    <span className="text-xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+                </div>
+                <Button className="h-10" onClick={() => setShowMobileCart(true)} disabled={cart.length === 0}>
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Finalizar ({cart.length})
+                </Button>
+            </div>
+
+            {/* Mobile Cart Modal */}
+            {showMobileCart && (
+                <div className="fixed inset-0 z-50 flex flex-col bg-white lg:hidden">
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <h2 className="text-xl font-bold">Meu Carrinho</h2>
+                        <button onClick={() => setShowMobileCart(false)}><X className="h-6 w-6" /></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4">
+                        {cart.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-gray-400">Carrinho Vazio</div>
+                        ) : (
+                            cart.map(i => (
+                                <div key={i.variantId} className="flex justify-between p-3 bg-gray-50 mb-3 rounded-lg border">
+                                    <div>
+                                        <div className="font-medium">{i.name}</div>
+                                        <div className="text-xs text-gray-500">{i.variantName}</div>
+                                    </div>
+                                    <div className="flex items-center gap-3 font-bold">
+                                        R$ {(i.price * i.qty).toFixed(2)}
+                                        <button onClick={() => removeFromCart(i.variantId)} className="text-red-500 p-1"><Trash className="w-5 h-5" /></button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    <div className="border-t bg-gray-50 p-6">
+                        <div className="flex justify-between mb-4">
+                            <span className="text-lg font-medium">Total</span>
+                            <span className="text-3xl font-bold text-primary">R$ {total.toFixed(2)}</span>
+                        </div>
+                        <Button className="w-full h-12 text-lg" onClick={() => { setPayments([]); setShowCheckoutModal(true); setShowMobileCart(false); }} disabled={cart.length === 0}>
+                            Ir para Pagamento
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Post-Add Action Modal (Mobile) */}
+            {showPostAddAction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-sm bg-white p-6 rounded-xl shadow-2xl flex flex-col gap-4">
+                        <div className="text-center">
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
+                                <Check className="h-8 w-8 text-green-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">Produto Adicionado!</h3>
+                            <p className="text-sm text-gray-500">O que deseja fazer agora?</p>
+                        </div>
+                        <Button variant="outline" className="w-full h-12 text-lg" onClick={() => setShowPostAddAction(false)}>
+                            Continuar Comprando
+                        </Button>
+                        <Button className="w-full h-12 text-lg" onClick={() => { setShowPostAddAction(false); setShowMobileCart(true); }}>
+                            Fechar Carrinho / Pagar
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {showCheckoutModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
