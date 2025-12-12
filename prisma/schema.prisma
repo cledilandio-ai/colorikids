@@ -27,6 +27,7 @@ model Product {
   imageUrl    String?
   category    String? // Vestido, Conjunto, Blusa, etc.
   gender      String? // MASCULINO, FEMININO, UNISSEX
+  supplier    String? // Fornecedor do produto
 
   variants    ProductVariant[]
   active      Boolean  @default(true)
@@ -48,6 +49,7 @@ model ProductVariant {
   imageUrl      String?
   inventoryLogs InventoryLog[]
   stockMovements StockMovement[]
+  active        Boolean  @default(true) // For Soft Delete
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

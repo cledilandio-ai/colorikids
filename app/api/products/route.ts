@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender } = body;
+        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, supplier } = body;
 
         const product = await prisma.$transaction(async (tx) => {
             // 1. Create Product
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
                     imageUrl: variants[0]?.imageUrl || null,
                     category,
                     gender,
+                    supplier,
                     variants: {
                         create: variants.map((v: any, index: number) => ({
                             size: v.size,
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
                         description: `Estoque Inicial - ${name}`,
                         amount: totalInitialCost,
                         type: "OUT",
-                        category: "COMPRA_PRODUTO", // Ensure this Category exists or use raw string if schema allows
+                        category: "COMPRA_PRODUTO",
                         date: new Date(),
                     }
                 });

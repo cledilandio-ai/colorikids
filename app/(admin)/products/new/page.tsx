@@ -19,6 +19,7 @@ export default function NewProductPage() {
         costPrice: "",
         category: "",
         gender: "",
+        supplier: "",
     });
 
     const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([
@@ -138,16 +139,30 @@ export default function NewProductPage() {
                 <h1 className="text-3xl font-bold text-gray-800">Novo Produto</h1>
             </div>
 
+
+
+            {/* Added Suppler Field */}
             <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border bg-white p-6 shadow-sm">
-                <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Nome do Produto</label>
-                    <input
-                        required
-                        className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Ex: Vestido Floral"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Nome do Produto</label>
+                        <input
+                            required
+                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Ex: Vestido Floral"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Fornecedor</label>
+                        <input
+                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Ex: Abrange"
+                            value={formData.supplier}
+                            onChange={(e) => setFormData({ ...formData, supplier: e.target.value.toUpperCase() })}
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-2">
@@ -164,25 +179,53 @@ export default function NewProductPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Categoria</label>
-                        <select
-                            className="w-full rounded-md border border-gray-300 p-2 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                            value={formData.category}
-                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        >
-                            <option value="">Selecione...</option>
-                            <option value="Vestido">Vestido</option>
-                            <option value="Conjunto">Conjunto</option>
-                            <option value="Blusa">Blusa</option>
-                            <option value="Calça">Calça</option>
-                            <option value="Shorts">Shorts</option>
-                            <option value="Saia">Saia</option>
-                            <option value="Macacão">Macacão</option>
-                            <option value="Jardineira">Jardineira</option>
-                            <option value="Body">Body</option>
-                            <option value="Pijama">Pijama</option>
-                            <option value="Acessórios">Acessórios</option>
-                            <option value="Calçados">Calçados</option>
-                        </select>
+                        {formData.category === "custom_option" || ![
+                            "", "Vestido", "Conjunto", "Blusa", "Calça", "Shorts", "Saia",
+                            "Macacão", "Jardineira", "Body", "Pijama", "Acessórios", "Calçados"
+                        ].includes(formData.category) ? (
+                            <div className="flex gap-2">
+                                <input
+                                    className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                    placeholder="Digite a categoria..."
+                                    value={formData.category === "custom_option" ? "" : formData.category}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
+                                        setFormData({ ...formData, category: capitalized });
+                                    }}
+                                    autoFocus
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setFormData({ ...formData, category: "" })}
+                                    title="Voltar para lista"
+                                >
+                                    Lista
+                                </Button>
+                            </div>
+                        ) : (
+                            <select
+                                className="w-full rounded-md border border-gray-300 p-2 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={formData.category}
+                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            >
+                                <option value="">Selecione...</option>
+                                <option value="Vestido">Vestido</option>
+                                <option value="Conjunto">Conjunto</option>
+                                <option value="Blusa">Blusa</option>
+                                <option value="Calça">Calça</option>
+                                <option value="Shorts">Shorts</option>
+                                <option value="Saia">Saia</option>
+                                <option value="Macacão">Macacão</option>
+                                <option value="Jardineira">Jardineira</option>
+                                <option value="Body">Body</option>
+                                <option value="Pijama">Pijama</option>
+                                <option value="Acessórios">Acessórios</option>
+                                <option value="Calçados">Calçados</option>
+                                <option value="custom_option" className="font-bold text-blue-600 bg-blue-50">✍️ Outro / Editável...</option>
+                            </select>
+                        )}
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Gênero</label>
@@ -273,9 +316,15 @@ export default function NewProductPage() {
                                         <input
                                             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"
                                             value={variant.color}
-                                            onChange={(e) => updateVariant(index, "color", e.target.value)}
-                                            placeholder="Ex: Azul"
+                                            onChange={(e) => updateVariant(index, "color", e.target.value.toUpperCase())}
+                                            placeholder="Ex: AZUL"
+                                            list={`colors-${index}`}
                                         />
+                                        <datalist id={`colors-${index}`}>
+                                            {Array.from(new Set(variants.map(v => v.color).filter(c => c && c !== variant.color))).map(c => (
+                                                <option key={c} value={c} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                 </div>
                                 <div className="flex flex-1 gap-3">

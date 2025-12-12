@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
 
 export async function GET(
     request: Request,
@@ -9,7 +10,12 @@ export async function GET(
         const id = params.id;
         const product = await prisma.product.findUnique({
             where: { id },
-            include: { variants: true },
+            include: {
+                variants: {
+                    where: { active: true },
+                    orderBy: { id: 'asc' }
+                }
+            },
         });
 
         if (!product) {
@@ -33,7 +39,7 @@ export async function PUT(
     try {
         const id = params.id;
         const body = await request.json();
-        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, financialRecord } = body;
+        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, financialRecord, supplier } = body;
 
 
         // 1. Separate incoming variants into Create vs Update
@@ -86,30 +92,41 @@ export async function PUT(
                     imageUrl,
                     category,
                     gender,
+                    supplier,
                 },
             });
 
-            // 3. Delete removed variants (or disconnect/ignore if constraint exists)
+            // 3. Delete removed variants (Soft Delete + Image Cleanup)
             if (idsToDelete.length > 0) {
-                // We cannot use deleteMany blindly because of foreign key constraints (InventoryLog, StockMovement).
-                // If a variant has history, we should arguably keep it but maybe we can't 'archive' it easily without a schema change.
-                // For now, let's try to delete them one by one. If it fails due to FK, we ignore it (effectively keeping it as 'zombie' or 'historic' data).
-                // However, this might result in them reappearing or being stuck?
-                // The proper fix is adding 'active' to ProductVariant or 'deletedAt'.
-                // Given the constraints and user urgency:
-                // We will try to delete. If we catch an error, we assumes it's FK and we leave it alone.
-                // BUT, if we leave it alone, it is still linked to the product. It will show up again next time we fetch?
-                // Yes, it will show up in future GETs.
-                // If the user wants to REMOVE it from the list, but we can't delete it, it will reappear.
-                // That is confusing.
-                // Ideally, we should zero out its stock and maybe move it to a 'archived' state if we could.
-                // Since we can't change schema right now safely:
-                // We will attempt to delete. If it fails, we will NOT fail the whole transaction, but we can't do that inside a Prisma transaction easily unless we wrap each delete.
-                // Actually, inside $transaction, if one fails, all revert.
-                // So we must do this: Filter out IDs that have relations BEFORE the transaction, OR handle it differently.
-                // Let's check for relations first.
+                // Fetch variants to be deleted to get their images
+                const variantsToRemove = await tx.productVariant.findMany({
+                    where: { id: { in: idsToDelete } }
+                });
+
+                // Soft Delete
+                await tx.productVariant.updateMany({
+                    where: { id: { in: idsToDelete } },
+                    data: { active: false }
+                });
+
+                // Delete images side-effect (after transaction or parallel? ideally after, but here is fine to trigger)
+                // We don't await this inside the transaction to avoid slowing it down too much, 
+                // OR we do it. Since it's file deletion, it's external.
+                // We'll trigger it without awaiting strictly or await it if we want to ensure it happens.
+                // Given Vercel functions, better to await or use Promise.allSettled
+
+                // We can't use `tx` for this, it's external.
+                // We will collect urls and delete them AFTER the transaction or inside if we don't mind the wait.
+                if (supabaseServiceKey) {
+                    const cleanupPromises = variantsToRemove
+                        .filter(v => v.imageUrl)
+                        .map(v => deleteImageFromSupabase(v.imageUrl));
+
+                    // We attach this promise to the end but don't block the logic heavily if possible.
+                    // But Next.js usage usually waits.
+                    await Promise.allSettled(cleanupPromises);
+                }
             }
-            // (Self-correction: I will implement the check inside the route before the transaction block or restructure the transaction)
 
 
             // 4. Update existing variants (Parallel execution for performance)
@@ -159,6 +176,41 @@ export async function PUT(
     }
 }
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Helper to delete image from Supabase
+async function deleteImageFromSupabase(imageUrl: string | null) {
+    if (!imageUrl || !supabaseServiceKey) return;
+
+    try {
+        // Extract path from URL
+        // Example: https://.../storage/v1/object/public/uploads/filename.jpg
+        const path = imageUrl.split("/uploads/")[1];
+        if (!path) return;
+
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
+
+        const { error } = await supabaseAdmin
+            .storage
+            .from("uploads")
+            .remove([path]);
+
+        if (error) {
+            console.error("Error deleting image from Supabase:", error);
+        } else {
+            console.log("Image deleted successfully:", path);
+        }
+    } catch (error) {
+        console.error("Exception deleting image:", error);
+    }
+}
+
 export async function DELETE(
     request: Request,
     { params }: { params: { id: string } }
@@ -166,13 +218,36 @@ export async function DELETE(
     try {
         const id = params.id;
 
-        // Soft Delete (Archive)
+        // 1. Fetch Key to delete images
+        const product = await prisma.product.findUnique({
+            where: { id },
+            include: { variants: true }
+        });
+
+        if (!product) {
+            return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        }
+
+        // 2. Soft Delete (Archive) Product
         await prisma.product.update({
             where: { id },
             data: { active: false }
         });
 
-        // Note: Variants, Logs, and Movements are PRESERVED for history.
+        // 3. Delete images from storage (Background task effectively)
+        // We delete images for ALL variants since the product is archived.
+        // Optional: Do we want to keep images if we un-archive? 
+        // User requested: "aproveite ao arquivar apagar a foto para liberar espaç no db"
+        // So yes, delete images.
+        if (supabaseServiceKey) {
+            const imagePromises = product.variants
+                .filter(v => v.imageUrl)
+                .map(v => deleteImageFromSupabase(v.imageUrl));
+
+            await Promise.allSettled(imagePromises);
+        } else {
+            console.warn("Skipping image deletion: SUPABASE_SERVICE_ROLE_KEY is missing.");
+        }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

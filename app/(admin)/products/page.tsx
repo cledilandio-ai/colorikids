@@ -5,12 +5,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProductsPage({ searchParams }: { searchParams: { lowStock?: string } }) {
     const where = searchParams.lowStock === "true"
-        ? { variants: { some: { stockQuantity: { lte: 5 } } } }
-        : {};
+        ? { variants: { some: { stockQuantity: { lte: 5 } } }, active: true }
+        : { active: true };
 
     const products = await prisma.product.findMany({
         where,
-        include: { variants: true },
+        include: { variants: { where: { active: true } } },
         orderBy: { createdAt: "desc" },
     });
 
