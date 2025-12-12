@@ -15,6 +15,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { RestockButton } from "@/components/admin/RestockButton";
+import { CategoryInput } from "@/components/admin/CategoryInput";
 
 export default function EditProductPage({ params }: { params: { id: string } }) {
     const router = useRouter();
@@ -363,52 +364,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Categoria</label>
-                        {formData.category === "custom_option" || ![
-                            "", "Vestido", "Conjunto", "Blusa", "Calça", "Shorts", "Saia",
-                            "Macacão", "Jardineira", "Body", "Pijama", "Acessórios", "Calçados"
-                        ].includes(formData.category) ? (
-                            <div className="flex gap-2">
-                                <input
-                                    className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                    placeholder="Digite a categoria..."
-                                    value={formData.category === "custom_option" ? "" : formData.category}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
-                                        setFormData({ ...formData, category: capitalized });
-                                    }}
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setFormData({ ...formData, category: "" })}
-                                    title="Voltar para lista"
-                                >
-                                    Lista
-                                </Button>
-                            </div>
-                        ) : (
-                            <select
-                                className="w-full rounded-md border border-gray-300 p-2 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                            >
-                                <option value="">Selecione...</option>
-                                <option value="Vestido">Vestido</option>
-                                <option value="Conjunto">Conjunto</option>
-                                <option value="Blusa">Blusa</option>
-                                <option value="Calça">Calça</option>
-                                <option value="Shorts">Shorts</option>
-                                <option value="Saia">Saia</option>
-                                <option value="Macacão">Macacão</option>
-                                <option value="Jardineira">Jardineira</option>
-                                <option value="Body">Body</option>
-                                <option value="Pijama">Pijama</option>
-                                <option value="Acessórios">Acessórios</option>
-                                <option value="Calçados">Calçados</option>
-                                <option value="custom_option" className="font-bold text-blue-600 bg-blue-50">✍️ Outro / Editável...</option>
-                            </select>
-                        )}
+                        <CategoryInput
+                            value={formData.category}
+                            onChange={(val) => setFormData({ ...formData, category: val })}
+                        />
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Gênero</label>

@@ -4,10 +4,22 @@ import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const search = searchParams.get('search');
+
+        const where: any = { active: true };
+
+        if (search) {
+            where.name = {
+                contains: search,
+                mode: 'insensitive'
+            };
+        }
+
         const products = await prisma.product.findMany({
-            where: { active: true },
+            where,
             orderBy: { createdAt: "desc" },
             include: { variants: true },
         });

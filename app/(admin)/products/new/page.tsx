@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Trash } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { CategoryInput } from "@/components/admin/CategoryInput";
 
 export default function NewProductPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [priceError, setPriceError] = useState("");
+    const [nameWarning, setNameWarning] = useState("");
+    const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -26,6 +29,47 @@ export default function NewProductPage() {
         { size: "2 Anos", color: "Branco", stockQuantity: "10", minStock: "1", imageUrl: "" },
     ]);
 
+    // Check for duplicate product name
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setFormData({ ...formData, name: val });
+
+        if (typingTimeout) clearTimeout(typingTimeout);
+
+        if (val.length > 2) {
+            const timeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/products?search=${encodeURIComponent(val)}`);
+                    if (res.ok) {
+                        const products = await res.json();
+                        const exists = products.some((p: any) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
+                        if (exists) {
+                            setNameWarning("⚠️ Já existe um produto com este nome.");
+                        } else if (products.length > 0) {
+                            setNameWarning(`ℹ️ ${products.length} produtos similares encontrados (ex: ${products[0].name}).`);
+                        } else {
+                            setNameWarning("");
+                        }
+                    }
+                } catch (e) {
+                    console.error("Erro ao verificar nome", e);
+                }
+            }, 500);
+            setTypingTimeout(timeout);
+        } else {
+            setNameWarning("");
+        }
+    };
+
+    const hasDuplicateVariants = () => {
+        const seen = new Set();
+        for (const v of variants) {
+            const key = `${v.size}-${v.color || 'unica'}`.toLowerCase();
+            if (seen.has(key)) return true;
+            seen.add(key);
+        }
+        return false;
+    };
     const validatePrices = () => {
         const safeParse = (val: string) => {
             if (!val) return 0;
@@ -101,6 +145,11 @@ export default function NewProductPage() {
             return;
         }
 
+        if (hasDuplicateVariants()) {
+            alert("Existem variantes duplicadas (mesmo tamanho e cor). Corrija antes de salvar.");
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -148,11 +197,12 @@ export default function NewProductPage() {
                         <label className="text-sm font-medium text-gray-700">Nome do Produto</label>
                         <input
                             required
-                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            className={`w-full rounded-md border p-2 focus:outline-none focus:ring-1 ${nameWarning ? "border-amber-500 focus:border-amber-500 focus:ring-amber-500" : "border-gray-300 focus:border-primary focus:ring-primary"}`}
                             placeholder="Ex: Vestido Floral"
                             value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            onChange={handleNameChange}
                         />
+                        {nameWarning && <span className="text-xs text-amber-600 font-medium">{nameWarning}</span>}
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Fornecedor</label>
@@ -179,53 +229,10 @@ export default function NewProductPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Categoria</label>
-                        {formData.category === "custom_option" || ![
-                            "", "Vestido", "Conjunto", "Blusa", "Calça", "Shorts", "Saia",
-                            "Macacão", "Jardineira", "Body", "Pijama", "Acessórios", "Calçados"
-                        ].includes(formData.category) ? (
-                            <div className="flex gap-2">
-                                <input
-                                    className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                    placeholder="Digite a categoria..."
-                                    value={formData.category === "custom_option" ? "" : formData.category}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
-                                        setFormData({ ...formData, category: capitalized });
-                                    }}
-                                    autoFocus
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setFormData({ ...formData, category: "" })}
-                                    title="Voltar para lista"
-                                >
-                                    Lista
-                                </Button>
-                            </div>
-                        ) : (
-                            <select
-                                className="w-full rounded-md border border-gray-300 p-2 bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                            >
-                                <option value="">Selecione...</option>
-                                <option value="Vestido">Vestido</option>
-                                <option value="Conjunto">Conjunto</option>
-                                <option value="Blusa">Blusa</option>
-                                <option value="Calça">Calça</option>
-                                <option value="Shorts">Shorts</option>
-                                <option value="Saia">Saia</option>
-                                <option value="Macacão">Macacão</option>
-                                <option value="Jardineira">Jardineira</option>
-                                <option value="Body">Body</option>
-                                <option value="Pijama">Pijama</option>
-                                <option value="Acessórios">Acessórios</option>
-                                <option value="Calçados">Calçados</option>
-                                <option value="custom_option" className="font-bold text-blue-600 bg-blue-50">✍️ Outro / Editável...</option>
-                            </select>
-                        )}
+                        <CategoryInput
+                            value={formData.category}
+                            onChange={(val) => setFormData({ ...formData, category: val })}
+                        />
                     </div>
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Gênero</label>
