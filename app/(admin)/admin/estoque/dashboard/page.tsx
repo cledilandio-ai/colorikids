@@ -28,6 +28,8 @@ export default async function InventoryDashboardPage() {
         createdAt: Date;
         variantCount: number;
         hasBrokenGrid: boolean;
+        zeroedVariants: string[];
+        lowStockVariants: string[];
     }>();
 
     // Métricas Globais
@@ -59,7 +61,9 @@ export default async function InventoryDashboardPage() {
                 lastSoldAt: null,
                 createdAt: variant.createdAt,
                 variantCount: 0,
-                hasBrokenGrid: false
+                hasBrokenGrid: false,
+                zeroedVariants: [],
+                lowStockVariants: []
             });
         }
 
@@ -77,6 +81,9 @@ export default async function InventoryDashboardPage() {
         // Grade Quebrada: Se tem zero estoque em uma variante
         if (qty === 0) {
             product.hasBrokenGrid = true;
+            product.zeroedVariants.push(`${(variant as any).size} ${(variant as any).color}`);
+        } else if (qty < vMinStock) {
+            product.lowStockVariants.push(`${(variant as any).size} ${(variant as any).color} (${qty})`);
         }
 
         // Data mais recente de restock
@@ -115,7 +122,11 @@ export default async function InventoryDashboardPage() {
         if (isOutOfStock) {
             status = 'out';
             countOutOfStock++;
-        } else if (isLowStock) {
+        } else if (p.hasBrokenGrid) {
+            // User wants broken grid items to appear in "Esgotados"
+            status = 'out';
+            countOutOfStock++;
+        } else if (isLowStock || p.lowStockVariants.length > 0) {
             status = 'low';
             countBelowMin++;
         } else if (isObsolete) {
@@ -139,7 +150,9 @@ export default async function InventoryDashboardPage() {
             lastSoldAt: p.lastSoldAt || null,
             status: status,
             variantCount: p.variantCount,
-            hasBrokenGrid: p.hasBrokenGrid && !isOutOfStock
+            hasBrokenGrid: p.hasBrokenGrid,
+            zeroedVariants: p.zeroedVariants,
+            lowStockVariants: p.lowStockVariants
         };
     });
 

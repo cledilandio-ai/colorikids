@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
-import { Archive, AlertTriangle, PackageX, TrendingUp, X, Filter, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, Calendar } from "lucide-react";
+import { Archive, AlertTriangle, PackageX, TrendingUp, X, Filter, ArrowUpDown, ArrowUp, ArrowDown, DollarSign, Calendar, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -32,6 +32,8 @@ interface AggregatedProduct {
     status: 'ok' | 'low' | 'out' | 'obsolete';
     variantCount: number;
     hasBrokenGrid: boolean;
+    zeroedVariants?: string[];
+    lowStockVariants?: string[];
 }
 
 interface StockDashboardClientProps {
@@ -96,32 +98,7 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
     const avgMarginValue = avgUnitPrice - avgUnitCost;
     const avgMarginPercent = avgUnitPrice > 0 ? (avgMarginValue / avgUnitPrice) * 100 : 0;
 
-    const sortedProducts = [...products].filter(p => {
-        if (activeFilter === 'all') return true;
-        if (activeFilter === 'low') return p.status === 'low';
-        if (activeFilter === 'out') return p.status === 'out';
-        if (activeFilter === 'obsolete') return p.status === 'obsolete';
-        return true;
-    }).sort((a, b) => {
-        if (!sortConfig) return 0;
 
-        const { key, direction } = sortConfig;
-
-        let valA = a[key] as any;
-        let valB = b[key] as any;
-
-        if (valA === null || valA === undefined) valA = 0;
-        if (valB === null || valB === undefined) valB = 0;
-
-        if (typeof valA === 'string' && typeof valB === 'string') {
-            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        }
-
-        if (valA < valB) return direction === 'asc' ? -1 : 1;
-        if (valA > valB) return direction === 'asc' ? 1 : -1;
-
-        return 0;
-    });
 
     const SortIcon = ({ columnKey }: { columnKey: keyof AggregatedProduct }) => {
         if (sortConfig?.key !== columnKey) return <ArrowUpDown className="ml-1 h-3 w-3 text-gray-300 opacity-50 inline" />;
@@ -134,6 +111,78 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
         return format(new Date(date), 'dd/MM/yy');
     }
 
+    // --- LÓGICA DE OBSOLESCÊNCIA DINÂMICA ---
+    const [obsoletePeriod, setObsoletePeriod] = useState(6); // Meses padrão
+    const [showObsoleteConfig, setShowObsoleteConfig] = useState(false);
+
+    const processedData = useMemo(() => {
+        let countObs = 0;
+        let valueObs = 0;
+        const thresholdDate = new Date();
+        thresholdDate.setMonth(thresholdDate.getMonth() - obsoletePeriod);
+
+        const newProducts = products.map(p => {
+            // Recalcula status se não for 'out' ou 'low' (prioridades maiores)
+            // Mantemos a prioridade do servidor: Out > Low > Obsolete > OK
+            // Mas apenas reavaliamos se for 'ok' ou 'obsolete' vindo do server,
+            // ou se quisermos garantir consistência total, re-avaliamos tudo que não é Zero ou Low.
+
+            // Vamos reconstruir a lógica baseada nos dados crus para garantir consistência visual
+            const isOutOfStock = p.stockQuantity === 0; // Grade quebrada também conta como out na visualização, mas aqui status 'out' do server já cuida disso?
+            // O server manda status 'out' se tiver grade quebrada.
+            // O server manda status 'low' se tiver baixo estoque.
+
+            // Se o status original for 'out' ou 'low', mantemos (pois são problemas mais graves/prioritários)
+            if (p.status === 'out' || p.status === 'low') {
+                return p;
+            }
+
+            // Se sobrou, verificamos obsolescência
+            const lastInput = p.lastRestockAt ? new Date(p.lastRestockAt) : new Date(p.createdAt || new Date());
+            const isObsolete = lastInput < thresholdDate;
+
+            if (isObsolete) {
+                countObs++;
+                valueObs += p.totalValue;
+                return { ...p, status: 'obsolete' as const };
+            }
+
+            return { ...p, status: 'ok' as const };
+        });
+
+        return {
+            products: newProducts,
+            metrics: {
+                ...metrics,
+                obsoleteCount: countObs,
+                obsoleteValue: valueObs
+            }
+        };
+    }, [products, metrics, obsoletePeriod]);
+
+    const displayMetrics = processedData.metrics;
+    const displayProducts = processedData.products;
+
+    // Atualiza lógica de ordenação e filtro para usar displayProducts
+    const sortedProducts = [...displayProducts].filter(p => {
+        if (activeFilter === 'all') return true;
+        if (activeFilter === 'low') return p.status === 'low';
+        if (activeFilter === 'out') return p.status === 'out';
+        if (activeFilter === 'obsolete') return p.status === 'obsolete';
+        return true;
+    }).sort((a, b) => {
+        if (!sortConfig) return 0;
+        // ... resta da logica de sort (mantida igual, referenciando a nova lista)
+        const { key, direction } = sortConfig;
+        let valA = a[key] as any;
+        let valB = b[key] as any;
+        if (valA === null || valA === undefined) valA = 0;
+        if (valB === null || valB === undefined) valB = 0;
+        if (typeof valA === 'string' && typeof valB === 'string') return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
     return (
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -150,11 +199,11 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                     <CardContent className="space-y-1">
                         <div className="flex justify-between items-end">
                             <span className="text-xs text-muted-foreground underline decoration-dotted" title="Soma do custo de todos os itens em estoque">Custo Total:</span>
-                            <span className="text-lg font-bold text-blue-700">{formatCurrency(metrics.totalCost)}</span>
+                            <span className="text-lg font-bold text-blue-700">{formatCurrency(displayMetrics.totalCost)}</span>
                         </div>
                         <div className="flex justify-between items-end">
                             <span className="text-xs text-muted-foreground underline decoration-dotted" title="Diferença total entre Preço de Venda e Custo (Lucro Bruto Projetado)">Margem Contrib.:</span>
-                            <span className="text-lg font-bold text-green-600">{formatCurrency(metrics.potentialProfit)}</span>
+                            <span className="text-lg font-bold text-green-600">{formatCurrency(displayMetrics.potentialProfit)}</span>
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-2 pt-2 border-t text-center flex items-center justify-center gap-1">
                             {viewMode === 'total' ?
@@ -196,20 +245,39 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
 
                 {/* CARD 3: OBSOLETO */}
                 <Card
-                    className={`cursor-pointer transition-all hover:shadow-md ${activeFilter === 'obsolete' ? 'ring-2 ring-red-500 bg-red-50' : ''}`}
+                    className={`cursor-pointer transition-all hover:shadow-md relative group ${activeFilter === 'obsolete' ? 'ring-2 ring-red-500 bg-red-50' : ''}`}
                     onClick={() => handleFilterClick('obsolete')}
                 >
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Estoque Obsoleto</CardTitle>
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                            Estoque Obsoleto
+                            {showObsoleteConfig ? (
+                                <div className="flex items-center gap-1 bg-white rounded p-1 shadow-sm border" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                        type="number"
+                                        className="w-12 h-6 text-xs p-1 border rounded"
+                                        value={obsoletePeriod}
+                                        onChange={(e) => setObsoletePeriod(Number(e.target.value) || 0)}
+                                        autoFocus
+                                    />
+                                    <span className="text-[10px] text-gray-500">meses</span>
+                                    <X className="w-3 h-3 text-gray-400 cursor-pointer" onClick={() => setShowObsoleteConfig(false)} />
+                                </div>
+                            ) : (
+                                <span className="text-[10px] font-normal text-muted-foreground bg-gray-100 px-1.5 py-0.5 rounded-full flex items-center gap-1 hover:bg-gray-200" onClick={(e) => { e.stopPropagation(); setShowObsoleteConfig(true); }}>
+                                    {obsoletePeriod} meses <Settings className="w-3 h-3 opacity-50" />
+                                </span>
+                            )}
+                        </CardTitle>
                         <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
                             <Archive className="h-4 w-4" />
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{formatCurrency(metrics.obsoleteValue)}</div>
+                        <div className="text-2xl font-bold text-red-600">{formatCurrency(displayMetrics.obsoleteValue)}</div>
                         <p className="text-xs text-muted-foreground">
-                            {metrics.totalItems > 0
-                                ? `${((metrics.obsoleteCount / metrics.totalItems) * 100).toFixed(1)}%`
+                            {displayMetrics.totalItems > 0
+                                ? `${((displayMetrics.obsoleteCount / displayMetrics.totalItems) * 100).toFixed(1)}%`
                                 : '0%'} do total
                         </p>
                     </CardContent>
@@ -222,12 +290,12 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                 >
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Abaixo do Mínimo</CardTitle>
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${metrics.lowStockCount ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center ${displayMetrics.lowStockCount ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
                             <AlertTriangle className="h-4 w-4" />
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-orange-600">{metrics.lowStockCount}</div>
+                        <div className="text-2xl font-bold text-orange-600">{displayMetrics.lowStockCount}</div>
                         <p className="text-xs text-muted-foreground">Produtos</p>
                     </CardContent>
                 </Card>
@@ -244,7 +312,7 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-red-600">{metrics.outOfStockCount}</div>
+                        <div className="text-2xl font-bold text-red-600">{displayMetrics.outOfStockCount}</div>
                         <p className="text-xs text-muted-foreground">Produtos</p>
                     </CardContent>
                 </Card>
@@ -261,7 +329,7 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{metrics.totalItems}</div>
+                        <div className="text-2xl font-bold">{displayMetrics.totalItems}</div>
                         <p className="text-xs text-muted-foreground">Cadastrados</p>
                     </CardContent>
                 </Card>
@@ -300,9 +368,11 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                 <th className="p-3 text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('stockQuantity')}>
                                     Qtd. <SortIcon columnKey="stockQuantity" />
                                 </th>
-                                <th className="p-3 text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('minStock')}>
-                                    Min. <SortIcon columnKey="minStock" />
-                                </th>
+                                {viewMode !== 'unitary' && (
+                                    <th className="p-3 text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort('minStock')}>
+                                        Min. <SortIcon columnKey="minStock" />
+                                    </th>
+                                )}
 
                                 {/* DATAS - VISÍVEL APENAS EM 'ALL' */}
                                 {viewMode === 'all' && (
@@ -324,6 +394,9 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                         </th>
                                         <th className="p-3 text-right bg-purple-50/50 cursor-pointer hover:bg-purple-100 border-r border-purple-100" onClick={() => handleSort('price')}>
                                             Venda Unit. <SortIcon columnKey="price" />
+                                        </th>
+                                        <th className="p-3 text-right bg-green-50/50 cursor-pointer hover:bg-green-100 border-r border-green-100">
+                                            Margem Unit.
                                         </th>
                                     </>
                                 )}
@@ -364,6 +437,18 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                                     </Badge>
                                                 </div>
                                             )}
+                                            {product.zeroedVariants && product.zeroedVariants.length > 0 && (
+                                                <div className="mt-1 text-[10px] text-red-500 leading-tight max-w-[200px]">
+                                                    <span className="font-semibold">Faltam:</span> {product.zeroedVariants.slice(0, 5).join(", ")}
+                                                    {product.zeroedVariants.length > 5 && <span>... (+{product.zeroedVariants.length - 5})</span>}
+                                                </div>
+                                            )}
+                                            {product.lowStockVariants && product.lowStockVariants.length > 0 && (
+                                                <div className="mt-1 text-[10px] text-orange-600 leading-tight max-w-[200px]">
+                                                    <span className="font-semibold">Baixo:</span> {product.lowStockVariants.slice(0, 5).join(", ")}
+                                                    {product.lowStockVariants.length > 5 && <span>... (+{product.lowStockVariants.length - 5})</span>}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-3 text-center text-gray-500 border-r border-transparent">
                                             {product.variantCount}
@@ -371,7 +456,9 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                         <td className={`p-3 text-center font-bold border-r border-transparent ${product.stockQuantity === 0 ? 'text-red-600' : product.stockQuantity < product.minStock ? 'text-orange-600' : 'text-green-600'}`}>
                                             {product.stockQuantity}
                                         </td>
-                                        <td className="p-3 text-center text-gray-500 border-r border-transparent">{product.minStock}</td>
+                                        {viewMode !== 'unitary' && (
+                                            <td className="p-3 text-center text-gray-500 border-r border-transparent">{product.minStock}</td>
+                                        )}
 
                                         {/* DATAS */}
                                         {viewMode === 'all' && (
@@ -394,6 +481,12 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                                 <td className="p-3 text-right text-purple-700 bg-purple-50/30 border-r border-purple-100 font-mono font-medium text-xs">
                                                     {formatCurrency(product.price)}
                                                 </td>
+                                                <td className="p-3 text-right text-green-700 bg-green-50/30 border-r border-green-100 font-mono font-bold text-xs">
+                                                    {formatCurrency(product.price - product.costPrice)}
+                                                    <span className="text-[10px] text-gray-500 ml-1 font-normal">
+                                                        ({product.price > 0 ? ((product.price - product.costPrice) / product.price * 100).toFixed(0) : 0}%)
+                                                    </span>
+                                                </td>
                                             </>
                                         )}
 
@@ -410,7 +503,8 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
                                         )}
 
                                         <td className="p-3 border-l border-transparent">
-                                            {product.status === 'out' && <Badge variant="destructive" className="h-5 text-[10px]">Esgotado</Badge>}
+                                            {product.status === 'out' && product.stockQuantity === 0 && <Badge variant="destructive" className="h-5 text-[10px]">Esgotado</Badge>}
+                                            {product.status === 'out' && product.stockQuantity > 0 && <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50 h-5 text-[10px] gap-1"><AlertTriangle className="w-3 h-3" /> Grade Quebrada</Badge>}
                                             {product.status === 'low' && <Badge className="bg-orange-500 hover:bg-orange-600 h-5 text-[10px]">Baixo</Badge>}
                                             {product.status === 'obsolete' && <Badge variant="secondary" className="text-red-500 h-5 text-[10px]">Obsoleto</Badge>}
                                             {product.status === 'ok' && <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 h-5 text-[10px]">Normal</Badge>}

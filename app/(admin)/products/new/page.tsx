@@ -290,14 +290,16 @@ export default function NewProductPage() {
 
 
                 <div className="space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <label className="text-sm font-medium text-gray-700">Grade (Tamanhos e Estoque)</label>
-                        <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
-                            <Plus className="h-3 w-3" /> Adicionar Tamanho
-                        </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={sortVariants} className="gap-1 ml-2">
-                            Agrupar Cores
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={addVariant} className="gap-1">
+                                <Plus className="h-3 w-3" /> Adicionar Tamanho
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={sortVariants} className="gap-1">
+                                Agrupar Cores
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4">
@@ -334,8 +336,8 @@ export default function NewProductPage() {
                                         </datalist>
                                     </div>
                                 </div>
-                                <div className="flex flex-1 gap-3">
-                                    <div className="space-y-1 w-20 flex-none">
+                                <div className="grid grid-cols-3 gap-3 w-full sm:flex sm:flex-1">
+                                    <div className="space-y-1 sm:w-20 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Qtd.</label>
                                         <input
                                             type="number"
@@ -346,7 +348,7 @@ export default function NewProductPage() {
                                             onChange={(e) => updateVariant(index, "stockQuantity", e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-1 w-20 flex-none">
+                                    <div className="space-y-1 sm:w-20 sm:flex-none">
                                         <label className="text-xs font-medium text-gray-700">Mínimo</label>
                                         <input
                                             type="number"
@@ -356,7 +358,7 @@ export default function NewProductPage() {
                                             onChange={(e) => updateVariant(index, "minStock", e.target.value)}
                                         />
                                     </div>
-                                    <div className="space-y-1 flex-1 min-w-[100px]">
+                                    <div className="space-y-1 sm:flex-1 sm:min-w-[100px]">
                                         <label className="text-xs font-medium text-gray-700">SKU</label>
                                         <input
                                             className="w-full rounded-md border border-gray-300 p-2 text-sm focus:border-primary focus:outline-none h-[38px]"

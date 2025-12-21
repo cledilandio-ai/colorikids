@@ -61,7 +61,7 @@ export function FinanceTabs({ transactions, totalIn, totalOut, balance }: Financ
 
     return (
         <Tabs defaultValue="transactions" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsList className="grid w-full grid-cols-1 mb-8 h-auto md:grid-cols-3">
                 <TabsTrigger value="transactions">Transações & Tesouraria</TabsTrigger>
                 <TabsTrigger value="receipts">Contas a Receber (Crediário)</TabsTrigger>
                 <TabsTrigger value="history">Histórico de Caixas</TabsTrigger>

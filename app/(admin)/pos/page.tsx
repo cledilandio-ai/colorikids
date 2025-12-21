@@ -431,21 +431,24 @@ export default function POSPage() {
                 </div>
             </div>
 
-            <div className="flex flex-1 gap-6 overflow-hidden">
-                <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+            <div className="flex flex-col gap-6 lg:flex-1 lg:flex-row lg:overflow-hidden">
+                <div className="flex flex-col gap-4 lg:flex-1 lg:overflow-hidden">
                     <div className="relative flex-shrink-0">
                         <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                         <input className="w-full rounded-xl border border-gray-300 p-3 pl-10 text-lg focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Buscar produto..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
                     </div>
-                    <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-24 lg:pb-4 md:grid-cols-3 lg:grid-cols-4 pr-2">
-                        {filteredProducts.map((product) => (
-                            <button key={product.id} onClick={() => handleProductClick(product)} className="group flex flex-col items-start justify-between overflow-hidden rounded-xl border bg-white text-left shadow-sm hover:border-primary hover:bg-blue-50">
-                                <div className="relative h-32 w-full overflow-hidden bg-gray-100">
-                                    {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
-                                </div>
-                                <div className="p-3 w-full"><span className="block font-semibold text-gray-800 line-clamp-1">{product.name}</span><div className="mt-2 flex items-center justify-between"><span className="text-lg font-bold text-primary">R$ {product.basePrice.toFixed(2)}</span><span className="text-xs text-gray-500">{product.variants?.length || 0} op.</span></div></div>
-                            </button>
-                        ))}
+                    {/* Product List Wrapper */}
+                    <div className="w-full relative h-[500px] lg:h-auto lg:flex-1 lg:min-h-0">
+                        <div className="grid grid-cols-2 gap-4 h-full overflow-y-auto pb-24 lg:pb-4 md:grid-cols-3 lg:grid-cols-4 pr-2">
+                            {filteredProducts.map((product) => (
+                                <button key={product.id} onClick={() => handleProductClick(product)} className="group shrink-0 flex flex-col items-start justify-between overflow-hidden rounded-xl border bg-white text-left shadow-sm hover:border-primary hover:bg-blue-50 h-auto min-h-[14rem]">
+                                    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-gray-100">
+                                        {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
+                                    </div>
+                                    <div className="p-3 w-full"><span className="block font-semibold text-gray-800 line-clamp-2">{product.name}</span><div className="mt-2 flex items-center justify-between"><span className="text-lg font-bold text-primary">R$ {product.basePrice.toFixed(2)}</span><span className="text-xs text-gray-500">{product.variants?.length || 0} op.</span></div></div>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
                 {/* Desktop Cart */}
