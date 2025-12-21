@@ -533,7 +533,7 @@ export default function POSPage() {
                             <h2 className="text-2xl font-bold">Pagamento</h2>
                             <button onClick={() => setShowCheckoutModal(false)}><X /></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-8">
+                        <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-sm font-medium">Cliente</label>

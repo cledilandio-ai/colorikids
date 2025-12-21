@@ -15,7 +15,7 @@ export function Navbar() {
         <nav className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-md">
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 <Link href="/" className="flex items-center gap-2">
-                    <div className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-primary">
+                    <div className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-primary flex-shrink-0">
                         <Image
                             src="/logo.png"
                             alt="Colorikids Logo"
@@ -23,7 +23,7 @@ export function Navbar() {
                             className="object-cover"
                         />
                     </div>
-                    <span className="text-xl font-bold text-primary">{companyName}</span>
+                    <span className="text-xl font-bold text-primary truncate max-w-[160px] sm:max-w-xs">{companyName}</span>
                 </Link>
 
                 <div className="flex items-center gap-4">

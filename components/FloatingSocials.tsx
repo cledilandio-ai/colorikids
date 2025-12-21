@@ -64,7 +64,7 @@ export function FloatingSocials() {
     const message = encodeURIComponent(whatsappMessage || "Olá! Vim pelo site da Colorikids e gostaria de saber mais.");
 
     return (
-        <div className="fixed bottom-4 right-4 z-40 flex flex-col gap-3">
+        <div className="fixed bottom-20 right-4 z-30 flex flex-col gap-3">
             {instagram && (
                 <a
                     href={instagram}

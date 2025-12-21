@@ -72,7 +72,7 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
                         Nossa Coleção
                     </h2>
 
-                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-wrap">
                         {/* Search Input */}
                         <div className="relative w-full md:w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
