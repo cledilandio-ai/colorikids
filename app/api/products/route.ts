@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
+// Função GET: Chamada quando o frontend pede a lista de produtos (ex: busca)
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -11,10 +12,11 @@ export async function GET(request: Request) {
 
         const where: any = { active: true };
 
+        // Se houver termo de busca, filtra pelo nome
         if (search) {
             where.name = {
                 contains: search,
-                mode: 'insensitive'
+                mode: 'insensitive' // Ignora maiúsculas/minúsculas
             };
         }
 
@@ -33,13 +35,15 @@ export async function GET(request: Request) {
     }
 }
 
+// Função POST: Chamada para Criar um Novo Produto
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, supplier } = body;
 
+        // Transação: Garante que tudo seja salvo ou nada seja salvo (em caso de erro)
         const product = await prisma.$transaction(async (tx) => {
-            // 1. Create Product
+            // 1. Cria o Produto e suas Variantes
             const newProduct = await tx.product.create({
                 data: {
                     name,
@@ -58,19 +62,20 @@ export async function POST(request: Request) {
                             minStock: parseInt(v.minStock) || 1,
                             lastRestockAt: parseInt(v.stockQuantity) > 0 ? new Date() : null,
                             imageUrl: v.imageUrl,
+                            // Gera SKU automático se não informado
                             sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${v.color?.substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${index}`,
                         })),
                     },
                 },
-                include: { variants: true } // Include to get created variants
+                include: { variants: true }
             });
 
-            // 2. Calculate Initial Stock Cost
+            // 2. Calcula o Custo Total do Estoque Inicial
             const costPerUnit = parseFloat(costPrice) || 0;
             const totalInitialStock = variants.reduce((acc: number, v: any) => acc + parseInt(v.stockQuantity), 0);
             const totalInitialCost = totalInitialStock * costPerUnit;
 
-            // 3. Register Financial Transaction if there is cost
+            // 3. Registra Transação Financeira de Saída (Compra de Estoque)
             if (totalInitialCost > 0) {
                 await tx.treasuryTransaction.create({
                     data: {

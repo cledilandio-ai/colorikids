@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 
+// Interface das métricas gerais do dashboard (card superiores)
 interface DashboardMetrics {
     totalCost: number;
     potentialProfit: number;
@@ -18,6 +19,7 @@ interface DashboardMetrics {
     obsoleteCount: number;
 }
 
+// Interface de um produto agregado (com variantes somadas)
 interface AggregatedProduct {
     id: string;
     name: string;
@@ -42,15 +44,19 @@ interface StockDashboardClientProps {
 }
 
 export function StockDashboardClient({ metrics, products }: StockDashboardClientProps) {
+    // Filtro ativo: 'all' (todos), 'low' (baixo min), 'out' (esgotado), 'obsolete' (velho)
     const [activeFilter, setActiveFilter] = useState<'all' | 'low' | 'out' | 'obsolete'>('all');
+
     // viewMode controla quais colunas aparecem na tabela
     // all -> Datas de Entrada/Saída (SEM FINANCEIRO)
-    // unitary -> Unitários
-    // total -> Totais
+    // unitary -> Unitários (Preço, Custo, Margem)
+    // total -> Totais (Valor em estoque, Lucro potencial)
     const [viewMode, setViewMode] = useState<'all' | 'unitary' | 'total'>('all');
 
+    // Configuração da ordenação da tabela (coluna e direção)
     const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedProduct, direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
 
+    // Função para alternar a ordenação ao clicar no cabeçalho
     const handleSort = (key: keyof AggregatedProduct) => {
         let direction: 'asc' | 'desc' = 'desc'; // Default desc for numbers
         if (key === 'name') direction = 'asc'; // Default asc for text
@@ -67,6 +73,7 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
         setActiveFilter(filter === activeFilter ? 'all' : filter);
     };
 
+    // Alterna o modo de visualização ao clicar nos cards de Resumo Financeiro
     const handleCardClick = (mode: 'unitary' | 'total') => {
         if (mode === 'total') {
             setViewMode('total');
@@ -112,6 +119,7 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
     }
 
     // --- LÓGICA DE OBSOLESCÊNCIA DINÂMICA ---
+    // Recalcula quais produtos são 'obsoletos' baseado no período selecionado pelo usuário (meses)
     const [obsoletePeriod, setObsoletePeriod] = useState(6); // Meses padrão
     const [showObsoleteConfig, setShowObsoleteConfig] = useState(false);
 
@@ -124,20 +132,13 @@ export function StockDashboardClient({ metrics, products }: StockDashboardClient
         const newProducts = products.map(p => {
             // Recalcula status se não for 'out' ou 'low' (prioridades maiores)
             // Mantemos a prioridade do servidor: Out > Low > Obsolete > OK
-            // Mas apenas reavaliamos se for 'ok' ou 'obsolete' vindo do server,
-            // ou se quisermos garantir consistência total, re-avaliamos tudo que não é Zero ou Low.
-
-            // Vamos reconstruir a lógica baseada nos dados crus para garantir consistência visual
-            const isOutOfStock = p.stockQuantity === 0; // Grade quebrada também conta como out na visualização, mas aqui status 'out' do server já cuida disso?
-            // O server manda status 'out' se tiver grade quebrada.
-            // O server manda status 'low' se tiver baixo estoque.
 
             // Se o status original for 'out' ou 'low', mantemos (pois são problemas mais graves/prioritários)
             if (p.status === 'out' || p.status === 'low') {
                 return p;
             }
 
-            // Se sobrou, verificamos obsolescência
+            // Se sobrou, verificamos obsolescência comparando a data de entrada com o limite
             const lastInput = p.lastRestockAt ? new Date(p.lastRestockAt) : new Date(p.createdAt || new Date());
             const isObsolete = lastInput < thresholdDate;
 

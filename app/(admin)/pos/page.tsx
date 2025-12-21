@@ -22,52 +22,64 @@ interface Customer {
 }
 
 export default function POSPage() {
+    // --- Estados Principais ---
     const searchParams = useSearchParams();
     const router = useRouter();
     const { pixKey, companyName, whatsapp } = useSettings();
+
+    // Lista de produtos carregados do banco
     const [products, setProducts] = useState<any[]>([]);
+    // Carrinho de compras: armazena os itens selecionados para venda
     const [cart, setCart] = useState<{ id: string; name: string; price: number; qty: number; variantId: string; variantName: string; sku?: string }[]>([]);
+    // Termo de busca para filtrar produtos
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
+    // ID do pedido atual (se estiver editando um pedido existente)
     const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
 
-    // Split Payment State
+    // --- Estados de Pagamento ---
+    // Lista de pagamentos adicionados (pode haver múltiplos métodos por venda)
     const [payments, setPayments] = useState<Payment[]>([]);
+    // Controla a exibição do modal de finalização/pagamento
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
-    // Customer State
+    // --- Estados de Cliente ---
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [customerSearch, setCustomerSearch] = useState("");
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isSearchingCustomer, setIsSearchingCustomer] = useState(false);
 
+    // Produto selecionado para exibir detalhes (modal de variantes)
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-    // Cash Register State
+    // --- Estados do Caixa (Fluxo de Caixa) ---
+    // Status do caixa: ABERTO, FECHADO ou CARREGANDO
     const [registerStatus, setRegisterStatus] = useState<"OPEN" | "CLOSED" | "LOADING">("LOADING");
+    // Dados do caixa atual (se aberto)
     const [registerData, setRegisterData] = useState<any>(null);
 
-    // Open Register Inputs
+    // Inputs para Abertura de Caixa
     const [initialAmount, setInitialAmount] = useState("");
     const [withdrawFromTreasury, setWithdrawFromTreasury] = useState(true);
     const [showOpenRegisterModal, setShowOpenRegisterModal] = useState(false);
 
-    // Close Register Inputs
+    // Inputs para Fechamento de Caixa
     const [showCloseRegisterModal, setShowCloseRegisterModal] = useState(false);
     const [closingCashCounted, setClosingCashCounted] = useState("");
     const [amountToTransfer, setAmountToTransfer] = useState("");
     const [suggestedAmount, setSuggestedAmount] = useState(0);
 
-    // PIX State
+    // --- Estados do PIX ---
     const [showPixModal, setShowPixModal] = useState(false);
     const [pixPayload, setPixPayload] = useState("");
     const [copied, setCopied] = useState(false);
 
-    // Mobile POS State
+    // --- Estados Específicos para Mobile ---
+    // Mostra opções após adicionar produto (Continuar ou Finalizar)
     const [showPostAddAction, setShowPostAddAction] = useState(false);
     const [showMobileCart, setShowMobileCart] = useState(false);
 
-    // Success Modal State
+    // --- Modal de Sucesso ---
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [lastOrderData, setLastOrderData] = useState<{ total: number; change: number; pixPayment?: Payment & { payload: string } } | null>(null);
 
@@ -85,6 +97,7 @@ export default function POSPage() {
         }
     }, [searchParams]);
 
+    // Busca detalhes de um pedido existente para edição/conferência
     const fetchOrder = async (id: string) => {
         try {
             const res = await fetch(`/api/orders/${id}`);
@@ -141,6 +154,7 @@ export default function POSPage() {
         finally { setIsSearchingCustomer(false); }
     };
 
+    // Verifica se o caixa está aberto ou fechado ao carregar a página
     const checkRegisterStatus = async () => {
         try {
             const res = await fetch("/api/cash-register", { cache: "no-store" });
@@ -165,6 +179,8 @@ export default function POSPage() {
         } catch (error) { console.error("Error checking register:", error); }
     };
 
+    // Processa a abertura do caixa
+    // Verifica se o valor informado bate com a sugestão e alerta sobre diferenças
     const handleOpenRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         const amount = parseFloat(initialAmount);
@@ -203,6 +219,9 @@ export default function POSPage() {
         } catch (error) { console.error(error); }
     };
 
+    // Processa o fechamento do caixa
+    // Compara o dinheiro físico na gaveta com o esperado (vendas em dinheiro + fundo)
+    // Permite sangria (retirada) para tesouraria
     const handleCloseRegister = async () => {
         const cashPhysicallyInDrawer = parseFloat(closingCashCounted) || 0;
         const cashToTransfer = parseFloat(amountToTransfer) || 0;
@@ -251,7 +270,12 @@ export default function POSPage() {
     };
 
     // --- Product & Cart Logic ---
+    // --- Lógica de Produtos e Carrinho ---
+    // Seleciona um produto para abrir o modal de variantes (tamanhos/cores)
     const handleProductClick = (product: any) => setSelectedProduct(product);
+
+    // Adiciona uma variante específica ao carrinho
+    // Verifica estoque antes de adicionar
     const addToCart = (variant: any) => {
         if (!selectedProduct) return;
 
@@ -308,6 +332,10 @@ export default function POSPage() {
     const confirmPixPayment = () => { addPayment("PIX", remaining > 0 ? remaining : total); setShowPixModal(false); };
 
     // Updated Handle Checkout to trigger Success Modal
+    // Finaliza a venda
+    // 1. Valida se o total foi pago (ou se há troco)
+    // 2. Envia os dados para a API (cria/atualiza pedido)
+    // 3. Abre modal de sucesso ou exibe erro
     const handleCheckout = async () => {
         if (cart.length === 0) return;
 
@@ -439,13 +467,19 @@ export default function POSPage() {
                     </div>
                     {/* Product List Wrapper */}
                     <div className="w-full relative h-[500px] lg:h-auto lg:flex-1 lg:min-h-0">
-                        <div className="grid grid-cols-2 gap-4 h-full overflow-y-auto pb-24 lg:pb-4 md:grid-cols-3 lg:grid-cols-4 pr-2">
+                        <div className="flex flex-wrap content-start gap-4 h-full overflow-y-auto pb-24 lg:pb-4 pr-2">
                             {filteredProducts.map((product) => (
-                                <button key={product.id} onClick={() => handleProductClick(product)} className="group shrink-0 flex flex-col items-start justify-between overflow-hidden rounded-xl border bg-white text-left shadow-sm hover:border-primary hover:bg-blue-50 h-auto min-h-[14rem]">
-                                    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-gray-100">
+                                <button key={product.id} onClick={() => handleProductClick(product)} className="text-left group flex flex-col justify-between overflow-hidden rounded-xl border bg-white shadow-sm hover:border-primary hover:bg-blue-50 transition-all duration-200 w-[calc(50%-0.5rem)] sm:w-[12rem] md:w-[13rem] lg:w-[14rem] shrink-0">
+                                    <div className="relative h-40 w-full shrink-0 overflow-hidden bg-gray-100">
                                         {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
                                     </div>
-                                    <div className="p-3 w-full"><span className="block font-semibold text-gray-800 line-clamp-2">{product.name}</span><div className="mt-2 flex items-center justify-between"><span className="text-lg font-bold text-primary">R$ {product.basePrice.toFixed(2)}</span><span className="text-xs text-gray-500">{product.variants?.length || 0} op.</span></div></div>
+                                    <div className="p-3 w-full flex flex-col flex-1 justify-between gap-1">
+                                        <span className="block font-semibold text-gray-800 line-clamp-2 text-sm leading-tight">{product.name}</span>
+                                        <div className="flex items-end justify-between w-full">
+                                            <span className="text-base font-bold text-primary">R$ {product.basePrice.toFixed(2)}</span>
+                                            <span className="text-[10px] text-gray-500 mb-1">{product.variants?.length || 0} op.</span>
+                                        </div>
+                                    </div>
                                 </button>
                             ))}
                         </div>

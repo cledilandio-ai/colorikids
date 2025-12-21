@@ -15,6 +15,7 @@ export default function NewProductPage() {
     const [nameWarning, setNameWarning] = useState("");
     const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
+    // Estado do formulário principal
     const [formData, setFormData] = useState({
         name: "",
         description: "",
@@ -22,14 +23,17 @@ export default function NewProductPage() {
         costPrice: "",
         category: "",
         gender: "",
-        supplier: "",
+        supplier: "", // Novo campo: Fornecedor
     });
 
+    // Estado para gerenciar a lista de variantes (Tamanhos/Cores)
+    // Inicia com uma linha padrão preenchida
     const [variants, setVariants] = useState<{ size: string; color: string; stockQuantity: string; minStock: string; imageUrl?: string; sku?: string }[]>([
         { size: "2 Anos", color: "Branco", stockQuantity: "10", minStock: "1", imageUrl: "" },
     ]);
 
-    // Check for duplicate product name
+    // Monitora a digitação do nome para verificar duplicidade em tempo real
+    // Usa debounce (delay) de 500ms para evitar chamadas excessivas à API
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setFormData({ ...formData, name: val });
@@ -42,10 +46,12 @@ export default function NewProductPage() {
                     const res = await fetch(`/api/products?search=${encodeURIComponent(val)}`);
                     if (res.ok) {
                         const products = await res.json();
+                        // Verifica correspondência exata
                         const exists = products.some((p: any) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
                         if (exists) {
                             setNameWarning("⚠️ Já existe um produto com este nome.");
                         } else if (products.length > 0) {
+                            // Alerta sobre nomes similares
                             setNameWarning(`ℹ️ ${products.length} produtos similares encontrados (ex: ${products[0].name}).`);
                         } else {
                             setNameWarning("");
@@ -102,11 +108,12 @@ export default function NewProductPage() {
         setVariants(variants.filter((_, i) => i !== index));
     };
 
+    // Atualiza um campo de uma variante específica
     const updateVariant = (index: number, field: "size" | "color" | "stockQuantity" | "minStock" | "imageUrl" | "sku", value: string) => {
         const newVariants = [...variants];
         newVariants[index] = { ...newVariants[index], [field]: value };
 
-        // Auto-fill image if color matches another variant
+        // Auto-preenchimento de imagem: Se já existir outra variante da mesma cor com foto, copia.
         if (field === "color") {
             const existingVariantWithColor = variants.find((v, i) => i !== index && v.color === value && v.imageUrl);
             if (existingVariantWithColor) {
@@ -114,7 +121,7 @@ export default function NewProductPage() {
             }
         }
 
-        // Sync image to all variants of same color if image is updated
+        // Sincronização de Imagem: Se a foto mudar, atualiza todas as variantes da mesma cor
         if (field === "imageUrl") {
             newVariants.forEach((v, i) => {
                 if (v.color === newVariants[index].color && i !== index) {
@@ -137,6 +144,7 @@ export default function NewProductPage() {
         setVariants(sorted);
     };
 
+    // Envio do formulário
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 

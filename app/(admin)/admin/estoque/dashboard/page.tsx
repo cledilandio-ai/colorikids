@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function InventoryDashboardPage() {
     // 1. Fetch Data
+    // 1. Busca todos os variantes de produtos do banco de dados
+    // Inclui os dados do produto pai para acesso a preço e custo
     const variants = await prisma.productVariant.findMany({
         include: {
             product: true,
@@ -14,25 +16,27 @@ export default async function InventoryDashboardPage() {
     });
 
     // 2. Agrupamento por Produto
+    // 2. Agrupamento por Produto
+    // Mapa para consolidar variantes (P/M/G) em um único produto abstrato para o dashboard
     const productsMap = new Map<string, {
         id: string;
         name: string;
         stockQuantity: number;
         minStock: number;
-        totalValue: number;         // Custo total estocado
-        totalPotentialRevenue: number; // Venda total projetada
+        totalValue: number;         // Custo total estocado (Custo Unit. * Qtd)
+        totalPotentialRevenue: number; // Venda total projetada (Preço Venda * Qtd)
         costPrice: number;          // Custo unitário médio (apenas ref)
         price: number;              // Preço venda médio (apenas ref)
         lastRestockAt: Date | null;
         lastSoldAt: Date | null;
         createdAt: Date;
         variantCount: number;
-        hasBrokenGrid: boolean;
-        zeroedVariants: string[];
-        lowStockVariants: string[];
+        hasBrokenGrid: boolean;     // Se tem alguma variante zerada
+        zeroedVariants: string[];   // Lista de nomes de variantes zeradas
+        lowStockVariants: string[]; // Lista de nomes de variantes com estoque baixo
     }>();
 
-    // Métricas Globais
+    // Métricas Globais (Acumuladores para o topo do dashboard)
     let globalTotalStockCost = 0;
     let globalPotentialRevenue = 0;
 
@@ -42,11 +46,11 @@ export default async function InventoryDashboardPage() {
         const price = Number(variant.product.basePrice || 0);
         const qty = variant.stockQuantity;
 
-        // Globais Financeiros
+        // Atualiza Globais Financeiros
         globalTotalStockCost += cost * qty;
         globalPotentialRevenue += price * qty;
 
-        // Agregação
+        // Inicializa entrada no mapa se não existir
         if (!productsMap.has(productId)) {
             productsMap.set(productId, {
                 id: productId,
@@ -70,7 +74,8 @@ export default async function InventoryDashboardPage() {
         const product = productsMap.get(productId)!;
         product.stockQuantity += qty;
 
-        // Type casting needed because Prisma types might lag behind schema updates
+        // Soma estoque mínimo das variantes para ter o mínimo do produto
+        // (Type casting necessário pois Prisma types podem estar defasados)
         const vMinStock = (variant as any).minStock || 1;
         product.minStock += vMinStock;
 
@@ -78,21 +83,22 @@ export default async function InventoryDashboardPage() {
         product.totalPotentialRevenue += (qty * price);
         product.variantCount += 1;
 
-        // Grade Quebrada: Se tem zero estoque em uma variante
+        // Verificação de Grade Quebrada: Se tem zero estoque em uma variante específica
         if (qty === 0) {
             product.hasBrokenGrid = true;
             product.zeroedVariants.push(`${(variant as any).size} ${(variant as any).color}`);
         } else if (qty < vMinStock) {
+            // Verificação de Baixo Estoque por variante
             product.lowStockVariants.push(`${(variant as any).size} ${(variant as any).color} (${qty})`);
         }
 
-        // Data mais recente de restock
+        // Atualiza Data mais recente de restock (reposição)
         const vRestock = (variant as any).lastRestockAt || variant.createdAt;
         if (!product.lastRestockAt || vRestock > product.lastRestockAt) {
             product.lastRestockAt = vRestock;
         }
 
-        // Data mais recente de venda
+        // Atualiza Data mais recente de venda
         const vSold = (variant as any).lastSoldAt;
         if (vSold && (!product.lastSoldAt || vSold > product.lastSoldAt)) {
             product.lastSoldAt = vSold;
@@ -109,21 +115,28 @@ export default async function InventoryDashboardPage() {
     let countObsolete = 0;
     let valueObsolete = 0;
 
+    // 3. Processamento Final e Classificação de Status
+    // Converte o Map em Array e define o status final de cada produto
     const aggregatedProducts = Array.from(productsMap.values()).map(p => {
         const isOutOfStock = p.stockQuantity === 0;
         const isLowStock = p.stockQuantity < p.minStock && p.stockQuantity > 0;
 
         let status: 'ok' | 'low' | 'out' | 'obsolete' = 'ok';
 
-        // Lógica Obsolescência
+        // Lógica de Obsolescência (Item parado há mais de X meses)
         const lastInput = p.lastRestockAt || p.createdAt;
         const isObsolete = p.stockQuantity > 0 && lastInput < sixMonthsAgo;
 
+        // Definição de Prioridade de Status:
+        // 1. Esgotado / Grade Quebrada (Mais crítico)
+        // 2. Baixo Estoque
+        // 3. Obsoleto
+        // 4. OK
         if (isOutOfStock) {
             status = 'out';
             countOutOfStock++;
         } else if (p.hasBrokenGrid) {
-            // User wants broken grid items to appear in "Esgotados"
+            // Itens com grade quebrada aparecem no filtro de Esgotados
             status = 'out';
             countOutOfStock++;
         } else if (isLowStock || p.lowStockVariants.length > 0) {
@@ -135,6 +148,7 @@ export default async function InventoryDashboardPage() {
             valueObsolete += p.totalValue;
         }
 
+        // Casos de borda: Se for baixo estoque mas também obsoleto, prioriza baixo estoque (alerta de reposição)
         if (status === 'low' && isObsolete) status = 'low';
 
         return {
@@ -143,7 +157,7 @@ export default async function InventoryDashboardPage() {
             stockQuantity: p.stockQuantity,
             minStock: p.minStock,
             totalValue: p.totalValue,
-            totalPotentialProfit: p.totalPotentialRevenue - p.totalValue, // Margem de Contribuição
+            totalPotentialProfit: p.totalPotentialRevenue - p.totalValue, // Margem de Contribuição Bruta
             price: p.price,
             costPrice: p.costPrice,
             lastRestockAt: lastInput,

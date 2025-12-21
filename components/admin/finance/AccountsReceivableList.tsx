@@ -20,8 +20,11 @@ interface Receivable {
     };
 }
 
+// Componente que lista contas a receber (Crediário)
 export default function AccountsReceivableList() {
+    // Lista de contas carregadas da API
     const [receivables, setReceivables] = useState<Receivable[]>([]);
+    // Filtro atual: 'PENDING' (A Vencer/Vencidos) ou 'PAID' (Pagos)
     const [filter, setFilter] = useState("PENDING");
     const [loading, setLoading] = useState(false);
 
@@ -29,6 +32,7 @@ export default function AccountsReceivableList() {
         fetchReceivables();
     }, [filter]);
 
+    // Busca as contas baseado no filtro selecionado
     const fetchReceivables = async () => {
         setLoading(true);
         try {
@@ -42,6 +46,8 @@ export default function AccountsReceivableList() {
         }
     };
 
+    // Marca uma conta como paga
+    // Envia requisição para API atualizar o status e gerar a transação no caixa
     const handleMarkAsPaid = async (id: string) => {
         if (!confirm("Confirmar recebimento deste valor?")) return;
 
