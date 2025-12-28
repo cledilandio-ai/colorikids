@@ -9,9 +9,10 @@ import { supabase } from "@/lib/supabaseClient";
 
 interface AdminSidebarProps {
     role?: string;
+    permissions?: string[];
 }
 
-export function AdminSidebar({ role }: AdminSidebarProps) {
+export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
@@ -34,7 +35,14 @@ export function AdminSidebar({ role }: AdminSidebarProps) {
         { href: "/settings", label: "Configurações", icon: Settings },
     ];
 
-    const allLinks = role === "OWNER" ? [...links, ...ownerLinks] : links;
+    // Default permissions for backward compatibility
+    const effectivePermissions = (permissions && permissions.length > 0) ? permissions : links.map(l => l.href);
+
+    const allAvailableLinks = [...links, ...ownerLinks];
+
+    const allLinks = role === "OWNER"
+        ? allAvailableLinks
+        : allAvailableLinks.filter(link => effectivePermissions.includes(link.href));
 
     return (
         <>

@@ -12,6 +12,8 @@ export async function GET() {
                 name: true,
                 email: true,
                 role: true,
+                maxDiscount: true,
+                permissions: true,
                 createdAt: true,
             },
         });
@@ -24,7 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { name, email, password, role } = body;
+        const { name, email, password, role, maxDiscount, permissions } = body;
 
         const existingUser = await prisma.user.findUnique({
             where: { email },
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
                 email,
                 password: hashedPassword,
                 role,
+                maxDiscount: parseFloat(maxDiscount) || 0,
+                permissions: Array.isArray(permissions) ? permissions : [],
             },
         });
 

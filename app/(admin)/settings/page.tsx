@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Save, Trash, Plus } from "lucide-react";
+import { Save, Trash, Plus, Pencil } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
@@ -21,7 +21,18 @@ export default function SettingsPage() {
     });
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
-    const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "SELLER" });
+    const [newUser, setNewUser] = useState({ id: "", name: "", email: "", password: "", role: "SELLER", maxDiscount: 0, permissions: [] as string[] });
+
+    const AVAILABLE_PERMISSIONS = [
+        { key: "/dashboard", label: "Visão Geral" },
+        { key: "/products", label: "Produtos" },
+        { key: "/admin/estoque/dashboard", label: "Estoque" },
+        { key: "/orders", label: "Pedidos" },
+        { key: "/pos", label: "PDV (Caixa)" },
+        { key: "/clientes", label: "Clientes" },
+        { key: "/financeiro", label: "Financeiro" },
+        { key: "/settings", label: "Configurações" }
+    ];
 
     const fetchUsers = async () => {
         const res = await fetch("/api/users");
@@ -36,19 +47,23 @@ export default function SettingsPage() {
 
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        const res = await fetch("/api/users", {
-            method: "POST",
+
+        const url = newUser.id ? `/api/users/${newUser.id}` : "/api/users";
+        const method = newUser.id ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+            method: method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newUser),
         });
 
         if (res.ok) {
-            setNewUser({ name: "", email: "", password: "", role: "SELLER" });
+            setNewUser({ id: "", name: "", email: "", password: "", role: "SELLER", maxDiscount: 0, permissions: [] });
             fetchUsers();
-            alert("Funcionário cadastrado com sucesso!");
+            alert(newUser.id ? "Funcionário atualizado com sucesso!" : "Funcionário cadastrado com sucesso!");
         } else {
             const data = await res.json();
-            alert(data.error || "Erro ao cadastrar funcionário");
+            alert(data.error || "Erro ao salvar funcionário");
         }
     };
 
@@ -417,22 +432,35 @@ export default function SettingsPage() {
                                 {users.map((user) => (
                                     <div key={user.id} className="flex items-center justify-between rounded-lg border p-3">
                                         <div>
-                                            <p className="font-medium text-gray-900">{user.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-medium text-gray-900">{user.name}</p>
+                                                {user.maxDiscount > 0 && <span className="text-xs bg-green-100 text-green-700 px-2 rounded-full">Desc: {user.maxDiscount}%</span>}
+                                            </div>
                                             <p className="text-sm text-gray-500">{user.email}</p>
                                             <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                                                 {user.role === "OWNER" ? "Proprietário" : "Vendedor"}
                                             </span>
                                         </div>
-                                        {user.role !== "OWNER" && (
+                                        <div className="flex items-center">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="text-red-400 hover:text-red-600"
-                                                onClick={() => handleDeleteUser(user.id)}
+                                                className="text-blue-400 hover:text-blue-600"
+                                                onClick={() => setNewUser({ ...user, password: "" })} // Populate form logic matches API user object usually
                                             >
-                                                <Trash className="h-4 w-4" />
+                                                <Pencil className="h-4 w-4" />
                                             </Button>
-                                        )}
+                                            {user.role !== "OWNER" && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-red-400 hover:text-red-600"
+                                                    onClick={() => handleDeleteUser(user.id)}
+                                                >
+                                                    <Trash className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                                 {users.length === 0 && (
@@ -441,9 +469,16 @@ export default function SettingsPage() {
                             </div>
                         </div>
 
-                        {/* Create User Form */}
+                        {/* Create/Edit User Form */}
                         <div className="rounded-xl border bg-white p-6 shadow-sm h-fit">
-                            <h2 className="mb-4 text-xl font-bold text-gray-800">Novo Funcionário</h2>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold text-gray-800">{newUser.id ? "Editar Funcionário" : "Novo Funcionário"}</h2>
+                                {newUser.id && (
+                                    <Button variant="ghost" size="sm" onClick={() => setNewUser({ id: "", name: "", email: "", password: "", role: "SELLER", maxDiscount: 0, permissions: [] })}>
+                                        Cancelar Edição
+                                    </Button>
+                                )}
+                            </div>
                             <form onSubmit={handleCreateUser} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
@@ -467,29 +502,68 @@ export default function SettingsPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha {newUser.id && "(Deixe em branco para manter)"}</label>
                                     <input
-                                        required
                                         type="password"
+                                        required={!newUser.id}
                                         value={newUser.password}
                                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                                         className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                         placeholder="******"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Função</label>
-                                    <select
-                                        value={newUser.role}
-                                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                                        className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                    >
-                                        <option value="SELLER">Vendedor</option>
-                                        <option value="OWNER">Proprietário</option>
-                                    </select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Função</label>
+                                        <select
+                                            value={newUser.role}
+                                            onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                        >
+                                            <option value="SELLER">Vendedor</option>
+                                            <option value="OWNER">Proprietário</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Desc. Máx (%)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={newUser.maxDiscount}
+                                            onChange={(e) => setNewUser({ ...newUser, maxDiscount: parseFloat(e.target.value) || 0 })}
+                                            className="w-full rounded-md border border-gray-300 p-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                            placeholder="0%"
+                                        />
+                                    </div>
                                 </div>
+                                {newUser.role !== "OWNER" && (
+                                    <div className="pt-2 mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Permissões de Acesso</label>
+                                        <div className="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg border">
+                                            {AVAILABLE_PERMISSIONS.map((perm) => (
+                                                <label key={perm.key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100 p-1 rounded">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={newUser.permissions?.includes(perm.key) || false}
+                                                        onChange={(e) => {
+                                                            const current = newUser.permissions || [];
+                                                            const newPerms = e.target.checked
+                                                                ? [...current, perm.key]
+                                                                : current.filter(p => p !== perm.key);
+                                                            setNewUser({ ...newUser, permissions: newPerms });
+                                                        }}
+                                                        className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                                                    />
+                                                    {perm.label}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <Button type="submit" className="w-full">
-                                    Cadastrar Funcionário
+                                    {newUser.id ? "Atualizar Funcionário" : "Cadastrar Funcionário"}
                                 </Button>
                             </form>
                         </div>

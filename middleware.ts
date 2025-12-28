@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
         path === "/products/new" ||
         (path.startsWith("/products/") && path.endsWith("/edit"));
 
-    if (path.startsWith("/settings") || path.startsWith("/financeiro") || path.startsWith("/admin") || isProtectedProductRoute) {
+    if (path.startsWith("/admin") || isProtectedProductRoute) {
         if (role !== "OWNER") {
             // If seller tries to access restricted admin routes, redirect to POS
             if (role === "SELLER") {

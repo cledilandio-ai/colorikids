@@ -173,30 +173,6 @@ export default function POSPage() {
         finally { setIsSearchingCustomer(false); }
     };
 
-    // Cadastro Rápido de Cliente
-    const handleCreateQuickCustomer = async () => {
-        if (!customerSearch) return;
-        try {
-            const res = await fetch("/api/customers", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: customerSearch }),
-            });
-            const newCustomer = await res.json();
-            if (res.ok) {
-                setSelectedCustomer(newCustomer);
-                setCustomerSearch(newCustomer.name);
-                setCustomers([]);
-                alert("Cliente cadastrado automaticamente!");
-            } else {
-                alert("Erro ao cadastrar: " + (newCustomer.error || 'Unknown'));
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Erro ao cadastrar cliente.");
-        }
-    };
-
     // --- Caixa (Register) Logic ---
     const checkRegisterStatus = async () => {
         try {
@@ -632,24 +608,8 @@ export default function POSPage() {
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-sm font-medium">Cliente</label>
-                                    <input className="w-full border p-2 rounded" placeholder="Buscar ou Digite Novo..." value={selectedCustomer ? selectedCustomer.name : customerSearch} onChange={e => { setCustomerSearch(e.target.value); setSelectedCustomer(null); }} />
-                                    {/* Dropdown */}
-                                    {customerSearch && !selectedCustomer && (
-                                        <div className="border mt-1 rounded max-h-40 overflow-auto bg-white shadow-lg absolute z-10 w-[95%] sm:w-[28rem]">
-                                            {customers.map(c => (
-                                                <div key={c.id} className="p-2 hover:bg-gray-50 cursor-pointer border-b" onClick={() => { setSelectedCustomer(c); setCustomers([]); }}>
-                                                    <span className="font-bold">{c.name}</span>
-                                                    {c.cpf && <span className="text-xs text-gray-500 ml-2">CPF: {c.cpf}</span>}
-                                                </div>
-                                            ))}
-                                            {/* Quick Create Option */}
-                                            {customerSearch.length > 2 && !customers.find(c => c.name.toLowerCase() === customerSearch.toLowerCase()) && (
-                                                <div className="p-2 hover:bg-green-50 cursor-pointer text-green-700 font-bold flex items-center gap-2" onClick={handleCreateQuickCustomer}>
-                                                    <span>+ Cadastrar "{customerSearch}"</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                    <input className="w-full border p-2 rounded" placeholder="Buscar..." value={selectedCustomer ? selectedCustomer.name : customerSearch} onChange={e => { setCustomerSearch(e.target.value); setSelectedCustomer(null); }} />
+                                    {customers.length > 0 && !selectedCustomer && <div className="border mt-1 rounded max-h-40 overflow-auto">{customers.map(c => <div key={c.id} className="p-2 hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedCustomer(c); setCustomers([]); }}>{c.name}</div>)}</div>}
                                 </div>
                                 <div className="bg-gray-50 p-4 rounded">
                                     <div className="mb-4">
