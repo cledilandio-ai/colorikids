@@ -29,7 +29,7 @@ export function FinanceTabs({ transactions, salesData, totalIn, totalOut, balanc
     // Inside the return, update FinancialReport usage:
 
 
-    // Calculate Global Contribution Margin Summary from full salesData
+    // Cálculo do Resumo Global da Margem de Contribuição a partir de todos os dados de vendas
     const totalSalesRevenue = salesData.reduce((acc, s) => acc + s.total, 0);
     const totalSalesCost = salesData.reduce((acc, s) => acc + s.cost, 0);
     const globalMargin = totalSalesRevenue - totalSalesCost;
@@ -44,7 +44,7 @@ export function FinanceTabs({ transactions, salesData, totalIn, totalOut, balanc
         setShowFilter(false);
     };
 
-    // Filter transactions and sales based on date range and type
+    // Filtrar transações e vendas com base no intervalo de datas e tipo selecionado
     const getFilteredData = () => {
         const [startYear, startMonth, startDay] = dateRange.start.split('-').map(Number);
         const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
@@ -52,16 +52,18 @@ export function FinanceTabs({ transactions, salesData, totalIn, totalOut, balanc
         const [endYear, endMonth, endDay] = dateRange.end.split('-').map(Number);
         const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
 
-        // Filter Transactions
+        // Filtrar Transações Financeiras
         const filteredTrans = transactions.filter(t => {
             const tDate = new Date(t.date);
             return tDate >= start && tDate <= end;
         });
 
-        const fIn = filteredTrans.filter(t => t.type === 'IN' && t.category !== 'INTERNAL_TRANSFER').reduce((acc, t) => acc + t.amount, 0);
+        // IMPORTANTE: fIn inclui todas as entradas, inclusive Transferências Internas (Recolhimentos),
+        // para garantir que o total bata com a soma da lista e com a receita real.
+        const fIn = filteredTrans.filter(t => t.type === 'IN').reduce((acc, t) => acc + t.amount, 0);
         const fOut = filteredTrans.filter(t => t.type === 'OUT').reduce((acc, t) => acc + t.amount, 0);
 
-        // Filter Sales Data
+        // Filtrar Dados de Vendas (para Margem)
         const filteredSales = salesData.filter(s => {
             const sDate = new Date(s.date);
             return sDate >= start && sDate <= end;
@@ -95,7 +97,7 @@ export function FinanceTabs({ transactions, salesData, totalIn, totalOut, balanc
         filteredMargin
     } = getFilteredData();
 
-    // Determine values to pass to report based on selected type
+    // Determinar valores para passar ao relatório com base no tipo selecionado
     const getReportValues = () => {
         if (summaryType === 'MARGIN') {
             return {

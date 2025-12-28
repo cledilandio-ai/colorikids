@@ -19,10 +19,10 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
         type === 'IN' ? 'Relatório de Entradas' :
             type === 'OUT' ? 'Relatório de Saídas' : 'Relatório de Margem de Contribuição';
 
-    // Filter transactions based on type (Legacy or standard reports)
+    // Filtrar transações com base no tipo selecionado (para relatórios padrão e legados)
     const filteredTransactions = transactions.filter(t => {
         if (type === 'BALANCE') return true;
-        // For Margin, we use salesData, so this filter might be less relevant or used for fallback/debug
+        // Para o tipo MARGIN, usamos salesData, então esse filtro pode ser menos relevante ou usado como fallback/debug
         if (type === 'MARGIN') return false;
         return t.type === type;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -32,7 +32,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
             type === 'OUT' ? totalOut :
                 (marginResult ?? 0);
 
-    // Calculate Margin Percentage for Summary
+    // Calcular Porcentagem de Margem para o Resumo
     const marginPercentage = (type === 'MARGIN' && totalIn > 0) ? ((totalIn - totalOut) / totalIn) * 100 : 0;
 
     const handlePrint = () => {
@@ -41,7 +41,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
 
     return (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-gray-900/80 backdrop-blur-sm overflow-y-auto pt-10 pb-10 print:p-0 print:bg-white print:static">
-            {/* Toolbar - Hidden on Print */}
+            {/* Barra de Ferramentas - Oculta na Impressão */}
             <div className="fixed top-4 right-4 flex gap-2 print:hidden z-50">
                 <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg">
                     <Printer className="mr-2 h-4 w-4" />
@@ -53,7 +53,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
                 </Button>
             </div>
 
-            {/* A4 Paper Container */}
+            {/* Container Papel A4 */}
             <div className="bg-white w-[210mm] min-h-[297mm] p-[15mm] shadow-2xl print:shadow-none print:w-full print:min-h-0 print:p-0 text-gray-900">
 
                 {/* Header */}
@@ -70,7 +70,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
                     </div>
                 </div>
 
-                {/* Report Title & Summary */}
+                {/* Título & Resumo do Relatório */}
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8 print:bg-white print:border-gray-300">
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">{title}</h2>
 
@@ -114,7 +114,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
                     )}
                 </div>
 
-                {/* Content Area */}
+                {/* Área de Conteúdo */}
                 {type === 'MARGIN' && salesData ? (
                     <table className="w-full text-left text-xs border-collapse">
                         <thead>
@@ -157,7 +157,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
                         </tbody>
                     </table>
                 ) : (
-                    /* Default Table for other types */
+                    /* Tabela Padrão para outros tipos */
                     <table className="w-full text-left text-sm border-collapse">
                         <thead>
                             <tr className="border-b-2 border-gray-800">
@@ -197,7 +197,7 @@ export function FinancialReport({ type, transactions, salesData, onClose, totalI
                 </div>
             </div>
 
-            {/* Print Styles to hide everything else */}
+            {/* Estilos de Impressão para esconder todo o resto */}
             <style jsx global>{`
                 @media print {
                     body > *:not(.fixed) {
