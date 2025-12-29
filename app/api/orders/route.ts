@@ -99,6 +99,13 @@ export async function POST(request: Request) {
                 const parsedItems = JSON.parse(items);
                 for (const item of parsedItems) {
                     if (item.variantId) {
+                        const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
+                        if (!variant) throw new Error(`Variante não encontrada: ${item.name}`);
+
+                        if (variant.stockQuantity < item.qty) {
+                            throw new Error(`Estoque insuficiente para "${item.name} - ${item.variantName}". Disponível: ${variant.stockQuantity}, Solicitado: ${item.qty}`);
+                        }
+
                         await tx.productVariant.update({
                             where: { id: item.variantId },
                             data: { stockQuantity: { decrement: item.qty } },

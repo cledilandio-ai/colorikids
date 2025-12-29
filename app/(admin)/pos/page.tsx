@@ -410,46 +410,72 @@ export default function POSPage() {
         } catch (e) { console.error(e); }
     };
 
-    const handleCheckout = async () => {
-        if (cart.length === 0) return;
-        if (isDiscountInvalid) {
-            alert('Desconto inválido! Cancele ou reduza o desconto.');
-            return;
-        }
+    const handleCheckout = async (extraPayment?: { method: string, amount: number }) => {
+        try {
+            if (loading) return; // Prevent double clicks
+            if (cart.length === 0) return;
 
-        const maxPercent = currentUser?.maxDiscount || 0;
-        const currentPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
-        if (currentUser && currentPercent > maxPercent + 0.1) {
-            alert(`Desconto maior que o permitido!`);
-            return;
-        }
-
-        if (remaining > 0.01) {
-            alert(`Falta receber R$ ${remaining.toFixed(2)}`);
-            return;
-        }
-
-        const hasCrediario = payments.some(p => p.method === "CREDIARIO");
-        if (hasCrediario && !selectedCustomer) { alert("Crediário exige cliente selecionado."); return; }
-
-        let paymentsToSubmit = payments.map(p => ({ ...p, amount: parseFloat(p.amount.toString()) || 0 }));
-        const change = Math.abs(remaining);
-
-        if (change > 0.01) {
-            const cashIndex = paymentsToSubmit.findIndex(p => p.method === "DINHEIRO");
-            if (cashIndex !== -1) {
-                const cashPayment = paymentsToSubmit[cashIndex];
-                paymentsToSubmit[cashIndex] = { ...cashPayment, amount: cashPayment.amount - change };
-            } else {
-                alert("Troco detectado sem pagamento em dinheiro.");
+            if (isDiscountInvalid) {
+                alert('Desconto inválido! Cancele ou reduza o desconto.');
                 return;
             }
-        }
 
-        setLoading(true);
-        try {
+            const maxPercent = currentUser?.maxDiscount || 0;
+            const currentPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+            if (currentUser && currentPercent > maxPercent + 0.1) {
+                alert(`Desconto maior que o permitido!`);
+                return;
+            }
+
+            // Combine existing payments with any extra payment (e.g. from Pix modal)
+            let paymentsToValidate = [...payments];
+            if (extraPayment) {
+                paymentsToValidate.push(extraPayment);
+            }
+
+            console.log("Validating Payments:", paymentsToValidate);
+
+            const currentTotalPaid = paymentsToValidate.reduce((acc, p) => {
+                const val = typeof p.amount === 'string' ? parseFloat(p.amount.replace(',', '.')) : p.amount;
+                return acc + (isNaN(val) ? 0 : val);
+            }, 0);
+
+            const currentRemaining = Math.max(0, total - currentTotalPaid);
+
+            if (currentRemaining > 0.01) {
+                alert(`Falta receber R$ ${currentRemaining.toFixed(2)}`);
+                return;
+            }
+
+            const hasCrediario = paymentsToValidate.some(p => p.method === "CREDIARIO");
+            if (hasCrediario && !selectedCustomer) { alert("Crediário exige cliente selecionado."); return; }
+
+            // Prepare payments for submission (normalize numbers)
+            let paymentsToSubmit = paymentsToValidate.map(p => {
+                const val = typeof p.amount === 'string' ? parseFloat(p.amount.replace(',', '.')) : p.amount;
+                return { ...p, amount: isNaN(val) ? 0 : val };
+            });
+
+            const change = Math.abs(currentRemaining); // Use calculated remaining
+
+            if (change > 0.01) {
+                const cashIndex = paymentsToSubmit.findIndex(p => p.method === "DINHEIRO");
+                if (cashIndex !== -1) {
+                    const cashPayment = paymentsToSubmit[cashIndex];
+                    paymentsToSubmit[cashIndex] = { ...cashPayment, amount: cashPayment.amount - change };
+                } else {
+                    alert("Troco detectado sem pagamento em dinheiro.");
+                    return;
+                }
+            }
+
+            setLoading(true);
+
             const url = currentOrderId ? `/api/orders/${currentOrderId}` : "/api/orders";
             const method = currentOrderId ? "PUT" : "POST";
+
+            console.log("Submitting Order:", { url, method, payments: paymentsToSubmit });
+
             const res = await fetch(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
@@ -474,16 +500,22 @@ export default function POSPage() {
                 }
                 setLastOrderData({ total, change: change > 0.01 ? change : 0, pixPayment: pixData });
                 setShowSuccessModal(true);
+                setShowPixModal(false);
                 setCart([]); setPayments([]); setSelectedCustomer(null); setCustomerSearch(""); setShowCheckoutModal(false);
                 checkRegisterStatus();
                 fetchProducts();
                 if (currentOrderId) { router.push("/orders"); setCurrentOrderId(null); }
             } else {
                 const data = await res.json();
+                console.error("API Error:", data);
                 alert(`Erro: ${data.error}`);
             }
-        } catch (e) { console.error(e); alert("Erro de conexão."); }
-        finally { setLoading(false); }
+        } catch (e: any) {
+            console.error("Checkout Error:", e);
+            alert(`Erro inesperado: ${e.message || "Erro desconhecido"}`);
+        } finally {
+            setLoading(false);
+        }
     };
 
     // --- Filter Vars ---
@@ -582,7 +614,7 @@ export default function POSPage() {
                         )}
 
                         <div className="flex justify-between mb-4"><span className="text-lg font-medium">Total Final</span><span className="text-3xl font-bold text-primary">R$ {total.toFixed(2)}</span></div>
-                        <Button className="w-full h-12" onClick={() => { setPayments([]); setShowCheckoutModal(true); }} disabled={cart.length === 0 || isDiscountInvalid}>Ir para Pagamento</Button>
+                        <Button className="w-full h-12" onClick={() => { setPayments([]); setShowCheckoutModal(true); }} disabled={cart.length === 0 || isDiscountInvalid || loading}>Ir para Pagamento</Button>
                     </div>
                 </div>
             </div>
@@ -590,7 +622,7 @@ export default function POSPage() {
             {/* Mobile Bottom Bar */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex items-center justify-between z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                 <div className="flex flex-col"><span className="text-sm text-gray-500">Total</span><span className="text-xl font-bold text-primary">R$ {total.toFixed(2)}</span></div>
-                <Button className="h-10" onClick={() => setShowMobileCart(true)} disabled={cart.length === 0}><ShoppingCart className="w-4 h-4 mr-2" /> Finalizar</Button>
+                <Button className="h-10" onClick={() => setShowMobileCart(true)} disabled={cart.length === 0 || loading}><ShoppingCart className="w-4 h-4 mr-2" /> Finalizar</Button>
             </div>
 
             {/* Mobile Cart Modal */}
@@ -607,7 +639,7 @@ export default function POSPage() {
                             </div>
                         )}
                         <div className="flex justify-between mb-4"><span className="text-lg font-medium">Total</span><span className="text-3xl font-bold text-primary">R$ {total.toFixed(2)}</span></div>
-                        <Button className="w-full h-12 text-lg" onClick={() => { setPayments([]); setShowCheckoutModal(true); setShowMobileCart(false); }} disabled={cart.length === 0}>Ir para Pagamento</Button>
+                        <Button className="w-full h-12 text-lg" onClick={() => { setPayments([]); setShowCheckoutModal(true); setShowMobileCart(false); }} disabled={cart.length === 0 || loading}>Ir para Pagamento</Button>
                     </div>
                 </div>
             )}
@@ -718,7 +750,7 @@ export default function POSPage() {
                             </div>
                         </div>
                         <div className="mt-4 pt-4 border-t">
-                            <Button className="w-full h-12" onClick={handleCheckout} disabled={isDiscountInvalid}>{isDiscountInvalid ? "Desconto Inválido" : "Finalizar"}</Button>
+                            <Button className="w-full h-12" onClick={() => handleCheckout()} disabled={isDiscountInvalid || loading}>{isDiscountInvalid ? "Desconto Inválido" : (loading ? "Processando..." : "Finalizar")}</Button>
                         </div>
                     </div>
                 </div>
@@ -768,8 +800,8 @@ export default function POSPage() {
                         <h3 className="font-bold text-lg mb-2">Pagamento Pix</h3>
                         <div className="bg-white p-2 border rounded inline-block mb-4 shadow-sm"><QRCodeSVG value={pixPayload} size={180} /></div>
                         <p className="font-bold text-xl mb-4 text-green-700">R$ {remaining > 0 ? remaining.toFixed(2) : total.toFixed(2)}</p>
-                        <Button onClick={handleCheckout} className="w-full mb-2 h-10">Confirmar Pagamento</Button>
-                        <Button variant="ghost" className="w-full h-8 text-xs text-gray-500" onClick={() => setShowPixModal(false)}>Cancelar</Button>
+                        <Button onClick={() => handleCheckout({ method: "PIX", amount: remaining > 0 ? remaining : total })} disabled={loading} className="w-full mb-2 h-10">{loading ? "Processando..." : "Confirmar Pagamento"}</Button>
+                        <Button variant="ghost" className="w-full h-8 text-xs text-gray-500" onClick={() => setShowPixModal(false)} disabled={loading}>Cancelar</Button>
                     </div>
                 </div>
             )}

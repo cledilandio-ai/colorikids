@@ -12,6 +12,7 @@ export async function GET() {
             orderBy: { createdAt: "desc" },
             include: {
                 orders: {
+                    where: { active: true },
                     include: { payments: true }
                 }
             }
@@ -151,7 +152,7 @@ export async function POST(request: Request) {
                 // We need to re-fetch or use logic to sum cash sales here to be secure, 
                 // but for now we rely on the consistency. To be robust, let's recalculate from orders.
                 const orders = await tx.order.findMany({
-                    where: { cashRegisterId: openRegister.id },
+                    where: { cashRegisterId: openRegister.id, active: true },
                     include: { payments: true }
                 });
 
