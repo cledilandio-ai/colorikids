@@ -58,12 +58,16 @@ export function ProductCard({ product }: ProductCardProps) {
             <div className="relative aspect-square overflow-hidden bg-gray-100">
                 <Link href={`/products/${product.id}`} className="block w-full h-full">
                     {displayImage ? (
+
                         <Image
                             src={displayImage}
                             alt={product.name || "Product"}
                             fill
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            loading="lazy"
                             className="object-cover transition-transform group-hover:scale-105"
                         />
+
                     ) : (
                         <div className="flex h-full w-full items-center justify-center text-gray-400">
                             No Image

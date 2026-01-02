@@ -399,6 +399,7 @@ export default function NewProductPage() {
                                                         type="file"
                                                         accept="image/*"
                                                         className="hidden"
+
                                                         onChange={async (e) => {
                                                             const file = e.target.files?.[0];
                                                             if (file) {
@@ -409,18 +410,29 @@ export default function NewProductPage() {
                                                                         return;
                                                                     }
 
+                                                                    // Import dinâmico da compressão para evitar SSR issues ou circular deps
+                                                                    const { compressImage } = await import("@/lib/imageCompression");
+                                                                    const compressedFile = await compressImage(file);
+
                                                                     const sanitizedFileName = file.name
                                                                         .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // Remove acentos
                                                                         .replace(/\s+/g, '-') // Espaços para hífens
                                                                         .replace(/[^a-zA-Z0-9.-]/g, "") // Remove tudo que não for letra, número, ponto ou hífen
                                                                         .toLowerCase(); // Tudo minúsculo
 
-                                                                    const filename = "public/" + Date.now() + "_" + sanitizedFileName;
+                                                                    // Se virou webp e o original não era, ajusta a extensão no nome final
+                                                                    let finalName = sanitizedFileName;
+                                                                    if (compressedFile.type === 'image/webp' && !finalName.endsWith('.webp')) {
+                                                                        finalName = finalName.replace(/\.[^/.]+$/, "") + ".webp";
+                                                                    }
+
+                                                                    const filename = "public/" + Date.now() + "_" + finalName;
 
                                                                     const { data, error } = await supabase.storage
                                                                         .from("uploads")
-                                                                        .upload(filename, file, {
-                                                                            upsert: false
+                                                                        .upload(filename, compressedFile, {
+                                                                            upsert: false,
+                                                                            contentType: compressedFile.type
                                                                         });
 
                                                                     if (error) {
@@ -441,6 +453,7 @@ export default function NewProductPage() {
                                                                 }
                                                             }
                                                         }}
+
                                                     />
                                                 </label>
                                             )}

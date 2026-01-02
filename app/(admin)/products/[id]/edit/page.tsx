@@ -522,6 +522,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                 <label className="cursor-pointer flex h-9 w-full items-center justify-center rounded-md border border-dashed text-xs text-gray-500 hover:bg-gray-50 sm:w-9">
                                                     <span className="sm:hidden">Upload</span>
                                                     <span className="hidden sm:inline">+</span>
+
                                                     <input
                                                         type="file"
                                                         accept="image/*"
@@ -536,17 +537,29 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                                         return;
                                                                     }
 
-                                                                    const sanitizedFileName = file.name
-                                                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // Remove acentos
-                                                                        .replace(/\s+/g, '-') // Espaços para hífens
-                                                                        .replace(/[^a-zA-Z0-9.-]/g, "") // Remove tudo que não for letra, número, ponto ou hífen
-                                                                        .toLowerCase(); // Tudo minúsculo
+                                                                    // Import dinâmico
+                                                                    const { compressImage } = await import("@/lib/imageCompression");
+                                                                    const compressedFile = await compressImage(file);
 
-                                                                    const filename = "public/" + Date.now() + "_" + sanitizedFileName;
+                                                                    const sanitizedFileName = file.name
+                                                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, "")
+                                                                        .replace(/\s+/g, '-')
+                                                                        .replace(/[^a-zA-Z0-9.-]/g, "")
+                                                                        .toLowerCase();
+
+                                                                    let finalName = sanitizedFileName;
+                                                                    if (compressedFile.type === 'image/webp' && !finalName.endsWith('.webp')) {
+                                                                        finalName = finalName.replace(/\.[^/.]+$/, "") + ".webp";
+                                                                    }
+
+                                                                    const filename = "public/" + Date.now() + "_" + finalName;
 
                                                                     const { data, error } = await supabase.storage
                                                                         .from("uploads")
-                                                                        .upload(filename, file, { upsert: false });
+                                                                        .upload(filename, compressedFile, {
+                                                                            upsert: false,
+                                                                            contentType: compressedFile.type
+                                                                        });
 
                                                                     if (error) {
                                                                         console.error("Erro no upload:", error);
@@ -567,6 +580,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                             }
                                                         }}
                                                     />
+
                                                 </label>
                                             )}
                                         </div>
