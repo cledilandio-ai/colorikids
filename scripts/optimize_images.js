@@ -32,7 +32,7 @@ const supabase = createClient(supabaseUrl, key);
 
 const BUCKET = 'uploads';
 const DRY_RUN = process.argv.includes('--dry-run');
-const MAX_FILES = 5; // Process only a few for safety first
+const MAX_FILES = 50; // Process only a few for safety first
 
 async function listAllFiles(bucket, folder = '') {
     let allFiles = [];

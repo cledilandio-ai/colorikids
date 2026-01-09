@@ -6,6 +6,7 @@ import { Save, Trash, Plus, Pencil } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
+import { compressImage } from "@/lib/imageCompression";
 
 export default function SettingsPage() {
     const { whatsapp, whatsappMessage, companyName, cnpj, instagram, pixKey, pixKeyType, featuredImageUrls, refreshSettings } = useSettings();
@@ -109,17 +110,26 @@ export default function SettingsPage() {
                     return;
                 }
 
-                const sanitizedFileName = file.name
-                    .normalize('NFD') // Decompose combined characters
-                    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
-                    .replace(/[^a-zA-Z0-9.-]/g, "_"); // Replace invalid chars with underscore
+                const compressedFile = await compressImage(file);
 
-                const filename = "public/" + Date.now() + "_" + sanitizedFileName;
+                const sanitizedFileName = file.name
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-zA-Z0-9.-]/g, "_");
+
+                // Ajustar extensão se virou webp
+                let finalName = sanitizedFileName;
+                if (compressedFile.type === 'image/webp' && !finalName.endsWith('.webp')) {
+                    finalName = finalName.replace(/\.[^/.]+$/, "") + ".webp";
+                }
+
+                const filename = "public/" + Date.now() + "_" + finalName;
 
                 const { data, error } = await supabase.storage
                     .from("uploads")
-                    .upload(filename, file, {
-                        upsert: false
+                    .upload(filename, compressedFile, {
+                        upsert: false,
+                        contentType: compressedFile.type
                     });
 
                 if (error) {

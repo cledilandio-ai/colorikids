@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 // Supabase client will be initialized inside the handler to allow build without env vars
 // const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -32,16 +33,37 @@ export async function POST(request: Request) {
             );
         }
 
-        const buffer = await file.arrayBuffer();
-        // Adiciona prefixo 'private/' para respeitar a estrutura de pastas sugerida pela policy, 
-        // embora a Service Role Key devesse ignorar isso, é uma boa prática manter organizado.
-        const filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+        let buffer = Buffer.from(await file.arrayBuffer());
+        let contentType = file.type;
+
+        // Otimização com Sharp (apenas se for imagem)
+        if (file.type.startsWith("image/")) {
+            try {
+                // Redimensionar e converter para WebP
+                buffer = await sharp(buffer)
+                    .resize({ width: 1080, withoutEnlargement: true })
+                    .webp({ quality: 80 })
+                    .toBuffer();
+                contentType = "image/webp";
+            } catch (sharpError) {
+                console.warn("Falha na otimização com Sharp, usando arquivo original:", sharpError);
+                // Continua com o buffer original em caso de erro no sharp
+            }
+        }
+
+        // Adiciona prefixo 'private/'
+        let filename = "private/" + Date.now() + "_" + file.name.replaceAll(" ", "_");
+
+        // Ajustar extensão se virou webp
+        if (contentType === "image/webp" && !filename.endsWith(".webp")) {
+            filename = filename.replace(/\.[^/.]+$/, "") + ".webp";
+        }
 
         // Upload para o Supabase Storage
         const { data, error } = await supabase.storage
             .from("uploads")
             .upload(filename, buffer, {
-                contentType: file.type,
+                contentType: contentType,
                 upsert: false
             });
 

@@ -4,23 +4,38 @@ const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
 
-// Tentar carregar env do root
+// Tentar carregar env do root (.env.local ou .env)
+const envLocalPath = path.resolve(__dirname, '../.env.local');
+const envPath = path.resolve(__dirname, '../.env');
+
 try {
-    const envConfig = dotenv.parse(fs.readFileSync(path.resolve(__dirname, '../.env.local')));
-    for (const k in envConfig) {
-        process.env[k] = envConfig[k];
+    let envConfig;
+    if (fs.existsSync(envLocalPath)) {
+        envConfig = dotenv.parse(fs.readFileSync(envLocalPath));
+    } else if (fs.existsSync(envPath)) {
+        envConfig = dotenv.parse(fs.readFileSync(envPath));
+    } else {
+        console.log("No .env or .env.local found");
+    }
+
+    if (envConfig) {
+        for (const k in envConfig) {
+            process.env[k] = envConfig[k];
+        }
     }
 } catch (e) {
-    console.log("No .env.local found, checking process env");
+    console.log("Error loading env files", e);
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing Supabase credentials in .env.local");
+    console.error("Missing Supabase credentials (URL or KEY) in .env/.env.local");
     process.exit(1);
 }
+
+console.log(`Using key type: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON_KEY'}`);
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
