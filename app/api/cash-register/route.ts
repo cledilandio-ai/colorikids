@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
+
     try {
-        console.log("GET /api/cash-register called");
         const openRegister = await prisma.cashRegister.findFirst({
-            where: { status: "OPEN" },
-            orderBy: { createdAt: "desc" },
+            where: { storeId, status: "OPEN" },
             include: {
                 orders: {
                     where: { active: true },
@@ -19,9 +24,8 @@ export async function GET() {
         });
 
         if (!openRegister) {
-            // Check for last closed register to suggest retained amount
             const lastRegister = await prisma.cashRegister.findFirst({
-                where: { status: "CLOSED" },
+                where: { storeId, status: "CLOSED" },
                 orderBy: { closedAt: "desc" }
             });
 
@@ -39,7 +43,6 @@ export async function GET() {
         openRegister.orders.forEach(order => {
             totalSales += order.total;
 
-            // Check payments
             const payments = (order as any).payments;
             if (payments && Array.isArray(payments) && payments.length > 0) {
                 payments.forEach((p: any) => {
@@ -49,10 +52,8 @@ export async function GET() {
                     }
                 });
             } else {
-                // Legacy support
                 const method = order.paymentMethod || "OUTROS";
                 salesByMethod[method] = (salesByMethod[method] || 0) + order.total;
-                // Note: Legacy orders might not correctly increment 'totalCashInDrawer' if method isn't explicitly DINHEIRO
             }
         });
 
@@ -63,7 +64,7 @@ export async function GET() {
             initialAmount: openRegister.initialAmount,
             totalSales,
             salesByMethod,
-            currentTotal: totalCashInDrawer // This fixes the undefined error
+            currentTotal: totalCashInDrawer
         });
     } catch (error) {
         console.error("Error fetching cash register:", error);
@@ -71,25 +72,28 @@ export async function GET() {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId, userId } = ctx;
+
     try {
         const body = await request.json();
         const { action, initialAmount, finalAmount, transferredAmount, withdrawFromTreasury } = body;
-        const cookieStore = cookies();
-        const userRole = cookieStore.get("user_role")?.value;
 
         if (action === "OPEN") {
             const amount = parseFloat(initialAmount);
             if (isNaN(amount)) return NextResponse.json({ error: "Valor inicial inválido." }, { status: 400 });
 
-            const existingOpen = await prisma.cashRegister.findFirst({ where: { status: "OPEN" } });
+            const existingOpen = await prisma.cashRegister.findFirst({ where: { storeId, status: "OPEN" } });
             if (existingOpen) return NextResponse.json({ error: "Já existe um caixa aberto." }, { status: 400 });
 
             console.log(`OPEN Register: Amount=${amount}, Withdraw=${withdrawFromTreasury}`);
 
-            // Find last closed register to determine expected previous balance
             const lastRegister = await prisma.cashRegister.findFirst({
-                where: { status: "CLOSED" },
+                where: { storeId, status: "CLOSED" },
                 orderBy: { closedAt: "desc" }
             });
             const previousBalance = lastRegister?.retainedAmount || 0;
@@ -98,22 +102,23 @@ export async function POST(request: Request) {
             const newRegister = await prisma.$transaction(async (tx) => {
                 const register = await tx.cashRegister.create({
                     data: {
+                        storeId,
                         initialAmount: amount,
                         status: "OPEN",
-                        userId: userRole || "UNKNOWN",
+                        userId: userId || "UNKNOWN",
                         retainedAmount: 0
                     },
                 });
 
-                // Only create transaction if there is a positive difference (injection) AND user confirmed it
                 if (withdrawFromTreasury && difference > 0) {
                     await tx.treasuryTransaction.create({
                         data: {
+                            storeId,
                             description: `Abertura PDV - Aporte de Troco`,
                             amount: difference,
                             type: "OUT",
                             category: "SUPPLY_PDV",
-                            userId: userRole || "UNKNOWN",
+                            userId: userId || "UNKNOWN",
                         }
                     });
                 }
@@ -123,7 +128,7 @@ export async function POST(request: Request) {
             return NextResponse.json(newRegister);
 
         } else if (action === "CLOSE") {
-            const openRegister = await prisma.cashRegister.findFirst({ where: { status: "OPEN" } });
+            const openRegister = await prisma.cashRegister.findFirst({ where: { storeId, status: "OPEN" } });
             if (!openRegister) return NextResponse.json({ error: "Não há caixa aberto." }, { status: 400 });
 
             const finalAmt = parseFloat(finalAmount);
@@ -144,15 +149,12 @@ export async function POST(request: Request) {
                         closedAt: new Date(),
                         finalAmount: finalAmt,
                         retainedAmount: retained,
-                        userId: userRole || "UNKNOWN",
+                        userId: userId || "UNKNOWN",
                     },
                 });
 
-                // 1. Calculate Expected Cash (Initial + Cash Sales - Withdrawals[future feature])
-                // We need to re-fetch or use logic to sum cash sales here to be secure, 
-                // but for now we rely on the consistency. To be robust, let's recalculate from orders.
                 const orders = await tx.order.findMany({
-                    where: { cashRegisterId: openRegister.id, active: true },
+                    where: { storeId, cashRegisterId: openRegister.id, active: true },
                     include: { payments: true }
                 });
 
@@ -169,29 +171,29 @@ export async function POST(request: Request) {
                 const expectedCash = openRegister.initialAmount + cashSales;
                 const difference = finalAmt - expectedCash;
 
-                // 2. Register Difference (Breakage/Surplus)
                 if (Math.abs(difference) > 0.01) {
                     const isLoss = difference < 0;
                     await tx.treasuryTransaction.create({
                         data: {
+                            storeId,
                             description: isLoss ? "Quebra de Caixa - Fechamento" : "Sobra de Caixa - Fechamento",
                             amount: Math.abs(difference),
                             type: isLoss ? "OUT" : "IN",
                             category: isLoss ? "QUEBRA_DE_CAIXA" : "SOBRA_DE_CAIXA",
-                            userId: userRole || "UNKNOWN",
+                            userId: userId || "UNKNOWN",
                         }
                     });
                 }
 
-                // 3. Register Transfer (Sangria/Recolhimento)
                 if (transferred > 0) {
                     await tx.treasuryTransaction.create({
                         data: {
+                            storeId,
                             description: `Recolhimento de Caixa - Fechamento`,
                             amount: transferred,
                             type: "IN",
                             category: "INTERNAL_TRANSFER",
-                            userId: userRole || "UNKNOWN",
+                            userId: userId || "UNKNOWN",
                         }
                     });
                 }

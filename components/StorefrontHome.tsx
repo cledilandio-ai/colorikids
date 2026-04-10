@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/Navbar";
 import { useSettings } from "@/context/SettingsContext";
-import { Instagram, MessageCircle, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { HeroCarousel } from "@/components/HeroCarousel";
 
 interface Product {
@@ -20,11 +20,20 @@ interface Product {
     variants: { id: string; imageUrl: string | null; size: string; price?: number }[];
 }
 
-interface StorefrontHomeProps {
-    initialProducts: Product[];
+interface TenantSettings {
+    companyName: string;
+    whatsapp: string;
+    whatsappMessage: string;
+    instagram: string;
+    featuredImageUrls: string;
 }
 
-export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
+interface StorefrontHomeProps {
+    initialProducts: Product[];
+    storeSlug?: string; // se presente, carrega settings da loja específica
+}
+
+export function StorefrontHome({ initialProducts, storeSlug }: StorefrontHomeProps) {
     const [selectedGender, setSelectedGender] = useState<string>("Todos");
     const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
     const [searchQuery, setSearchQuery] = useState("");
@@ -43,7 +52,29 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
         });
     }, [initialProducts, selectedGender, selectedCategory, searchQuery]);
 
-    const { whatsapp, instagram, featuredImageUrls } = useSettings();
+    // Se tiver storeSlug, usa settings públicas da loja. Caso contrário, usa o SettingsContext (loja principal)
+    const globalSettings = useSettings();
+    const [tenantSettings, setTenantSettings] = useState<TenantSettings | null>(null);
+
+    useEffect(() => {
+        if (!storeSlug) return;
+        fetch(`/api/storefront/${storeSlug}/settings`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setTenantSettings(data); })
+            .catch(() => {});
+    }, [storeSlug]);
+
+    const whatsapp = storeSlug ? (tenantSettings?.whatsapp ?? "") : globalSettings.whatsapp;
+    const instagram = storeSlug ? (tenantSettings?.instagram ?? "") : globalSettings.instagram;
+    const companyName = storeSlug ? (tenantSettings?.companyName ?? "") : globalSettings.companyName;
+
+    const rawFeatured = storeSlug
+        ? (tenantSettings?.featuredImageUrls ?? "[]")
+        : JSON.stringify(globalSettings.featuredImageUrls ?? []);
+
+    const featuredImageUrls = useMemo(() => {
+        try { return JSON.parse(rawFeatured); } catch { return []; }
+    }, [rawFeatured]);
 
     return (
         <main className="min-h-screen bg-background flex flex-col">
@@ -131,11 +162,8 @@ export function StorefrontHome({ initialProducts }: StorefrontHomeProps) {
             {/* Footer */}
             <footer className="bg-white border-t py-8 mt-auto">
                 <div className="container mx-auto px-4 flex flex-col items-center justify-center gap-4">
-                    <div className="flex items-center gap-6">
-                        {/* Icons moved to floating component */}
-                    </div>
                     <p className="text-sm text-gray-500">
-                        © {new Date().getFullYear()} Colorikids. Todos os direitos reservados.
+                        © {new Date().getFullYear()} {companyName || "Vast Cosmos"}. Todos os direitos reservados.
                     </p>
                 </div>
             </footer>

@@ -1,59 +1,35 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status"); // PENDING, PAID, OVERDUE
+export async function GET(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
 
     try {
-        const where: any = {};
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get('status');
+
+        const where: any = { customer: { storeId } }; // Receivables pertence ao Customer que pertence à Store
         if (status) {
             where.status = status;
         }
 
         const receivables = await prisma.accountReceivable.findMany({
             where,
-            include: {
-                customer: {
-                    select: { name: true, phone: true }
-                },
-                order: {
-                    select: { id: true, createdAt: true }
-                }
-            },
+            include: { customer: true, order: true },
             orderBy: { dueDate: "asc" }
         });
 
         return NextResponse.json(receivables);
     } catch (error) {
-        return NextResponse.json({ error: "Failed to fetch receivables" }, { status: 500 });
-    }
-}
-
-export async function POST(request: Request) {
-    try {
-        const body = await request.json();
-        const { id, action } = body;
-
-        if (action === "MARK_PAID") {
-            const receivable = await prisma.accountReceivable.update({
-                where: { id },
-                data: {
-                    status: "PAID",
-                    updatedAt: new Date()
-                }
-            });
-
-            // Optionally: Create a TreasuryTransaction for this income?
-            // For now, let's keep it simple.
-
-            return NextResponse.json(receivable);
-        }
-
-        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    } catch (error) {
-        return NextResponse.json({ error: "Failed to update receivable" }, { status: 500 });
+        console.error("Error fetching receivables:", error);
+        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

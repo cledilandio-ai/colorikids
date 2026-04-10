@@ -32,7 +32,9 @@ export default function LoginPage() {
                 document.cookie = `user_role=${role}; path=/; max-age=86400`; // 1 day
                 document.cookie = `user_id=${data.user.id}; path=/; max-age=86400`;
 
-                if (role === "OWNER") {
+                if (role === "SUPER_ADMIN") {
+                    router.push("/super-admin");
+                } else if (role === "OWNER") {
                     router.push("/dashboard");
                 } else {
                     router.push("/pos");

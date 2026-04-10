@@ -1,20 +1,32 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const prisma = new PrismaClient();
+export async function GET(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
 
-export async function GET() {
     try {
-        let config = await prisma.storeConfig.findFirst();
+        let config = await prisma.storeConfig.findUnique({ 
+            where: { storeId },
+            include: { store: { select: { slug: true } } }
+        });
 
         if (!config) {
+            // Cria configuração padrão para esta loja se não existir
             config = await prisma.storeConfig.create({
                 data: {
+                    storeId,
                     whatsapp: "5511999999999",
-                    companyName: "Colorikids",
+                    companyName: "Minha Loja",
                 },
+                include: { store: { select: { slug: true } } }
             });
         }
 
@@ -25,25 +37,24 @@ export async function GET() {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
+
     try {
         const body = await request.json();
         const { whatsapp, whatsappMessage, companyName, cnpj, instagram, featuredImageUrls, pixKey, pixKeyType } = body;
 
-        const config = await prisma.storeConfig.findFirst();
-
         const featuredImageUrlsString = JSON.stringify(featuredImageUrls || []);
 
-        if (config) {
-            await prisma.storeConfig.update({
-                where: { id: config.id },
-                data: { whatsapp, whatsappMessage, companyName, cnpj, instagram, featuredImageUrls: featuredImageUrlsString, pixKey, pixKeyType },
-            });
-        } else {
-            await prisma.storeConfig.create({
-                data: { whatsapp, whatsappMessage, companyName, cnpj, instagram, featuredImageUrls: featuredImageUrlsString, pixKey, pixKeyType },
-            });
-        }
+        await prisma.storeConfig.upsert({
+            where: { storeId },
+            update: { whatsapp, whatsappMessage, companyName, cnpj, instagram, featuredImageUrls: featuredImageUrlsString, pixKey, pixKeyType },
+            create: { storeId, whatsapp, whatsappMessage, companyName, cnpj, instagram, featuredImageUrls: featuredImageUrlsString, pixKey, pixKeyType },
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

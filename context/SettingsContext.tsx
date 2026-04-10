@@ -16,6 +16,7 @@ interface SettingsContextType {
     pixKey: string;
     pixKeyType: string;
     featuredImageUrls: Highlight[];
+    storeSlug: string;
     refreshSettings: () => Promise<void>;
     loading: boolean;
 }
@@ -32,6 +33,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const [pixKey, setPixKey] = useState("");
     const [pixKeyType, setPixKeyType] = useState("CPF");
     const [loading, setLoading] = useState(true);
+    const [storeSlug, setStoreSlug] = useState("");
 
     const fetchSettings = async () => {
         try {
@@ -39,12 +41,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             if (res.ok) {
                 const data = await res.json();
                 setWhatsapp(data.whatsapp || "");
-                setWhatsappMessage(data.whatsappMessage || "Olá! Vim pelo site da Colorikids e gostaria de saber mais.");
-                setCompanyName(data.companyName || "Colorikids");
+                setWhatsappMessage(data.whatsappMessage || "Olá! Vim pelo site e gostaria de saber mais.");
+                setCompanyName(data.companyName || "Minha Loja");
                 setCnpj(data.cnpj || "");
                 setInstagram(data.instagram || "");
                 setPixKey(data.pixKey || "");
                 setPixKeyType(data.pixKeyType || "CPF");
+                setStoreSlug(data.store?.slug || "");
 
                 try {
                     const parsed = JSON.parse(data.featuredImageUrls || "[]");
@@ -77,7 +80,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <SettingsContext.Provider value={{ whatsapp, whatsappMessage, companyName, cnpj, instagram, pixKey, pixKeyType, featuredImageUrls, refreshSettings: fetchSettings, loading }}>
+        <SettingsContext.Provider value={{ whatsapp, whatsappMessage, companyName, cnpj, instagram, pixKey, pixKeyType, featuredImageUrls, storeSlug, refreshSettings: fetchSettings, loading }}>
             {children}
         </SettingsContext.Provider>
     );

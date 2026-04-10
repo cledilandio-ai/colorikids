@@ -6,6 +6,7 @@ import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { useSettings } from "@/context/SettingsContext";
 
 interface AdminSidebarProps {
     role?: string;
@@ -35,6 +36,8 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
         { href: "/settings", label: "Configurações", icon: Settings },
     ];
 
+    const { companyName, storeSlug } = useSettings();
+
     // Default permissions for backward compatibility
     const effectivePermissions = (permissions && permissions.length > 0) ? permissions : links.map(l => l.href);
 
@@ -44,6 +47,9 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
         ? allAvailableLinks
         : allAvailableLinks.filter(link => effectivePermissions.includes(link.href));
 
+    // Determina a URL do catálogo dependendo de ter slug ou não, na Vercel o ideal é /loja/[slug], mas por garantia:
+    const storeUrl = storeSlug ? `/c/${storeSlug}` : "/";
+
     return (
         <>
             {/* Mobile Header */}
@@ -52,7 +58,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
                     <Button variant="ghost" size="icon" onClick={() => setIsMobileOpen(true)} className="mr-2">
                         <Menu className="h-6 w-6" />
                     </Button>
-                    <span className="text-lg font-bold text-primary">Colorikids Admin</span>
+                    <span className="text-lg font-bold text-primary">{companyName} Admin</span>
                 </div>
             </div>
 
@@ -69,7 +75,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
             >
                 {/* Desktop Header with Toggle */}
                 <div className={cn("hidden md:flex h-16 items-center border-b px-4 transition-all duration-300", isCollapsed ? "justify-center" : "justify-between")}>
-                    {!isCollapsed && <span className="text-xl font-bold text-primary truncate">Colorikids Admin</span>}
+                    {!isCollapsed && <span className="text-xl font-bold text-primary truncate">{companyName} Admin</span>}
 
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
@@ -82,7 +88,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
 
                 {/* Mobile Header inside Sidebar (close button) */}
                 <div className="flex md:hidden h-16 items-center justify-between border-b px-4">
-                    <span className="text-xl font-bold text-primary">Colorikids Admin</span>
+                    <span className="text-xl font-bold text-primary">{companyName} Admin</span>
                     <button onClick={() => setIsMobileOpen(false)} className="p-2">
                         <X className="h-6 w-6" />
                     </button>
@@ -117,7 +123,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
                     <div className="my-4 border-t border-gray-200" />
 
                     <Link
-                        href="/"
+                        href={storeUrl}
                         target="_blank"
                         className={cn(
                             "flex items-center rounded-lg px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors",

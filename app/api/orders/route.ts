@@ -1,28 +1,47 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
+
     try {
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get('status');
+
+        const where: any = { active: true, storeId };
+        if (status) where.status = status;
+
         const orders = await prisma.order.findMany({
-            where: { active: true },
+            where,
             orderBy: { createdAt: "desc" },
+            include: { payments: true },
         });
         return NextResponse.json(orders);
     } catch (error) {
         console.error("Error fetching orders:", error);
-        return NextResponse.json(
-            { error: "Error fetching orders" },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Error fetching orders" }, { status: 500 });
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId, userId } = ctx;
+
     try {
         const body = await request.json();
         const { customerName, customerPhone, total, status, type, items, paymentMethod, cashRegisterId, payments, customerId } = body;
 
-        // Validation: If payments array is provided, check if total matches
         if (payments && Array.isArray(payments)) {
             const paymentsTotal = payments.reduce((acc: number, p: any) => acc + p.amount, 0);
             if (Math.abs(paymentsTotal - total) > 0.01) {
@@ -30,9 +49,8 @@ export async function POST(request: Request) {
             }
         }
 
-        // Transaction to ensure data integrity
         const order = await prisma.$transaction(async (tx) => {
-            // 1. Create Order
+            // 1. Cria o Pedido
             const newOrder = await tx.order.create({
                 data: {
                     customerName,
@@ -43,22 +61,18 @@ export async function POST(request: Request) {
                     items,
                     paymentMethod: paymentMethod || (payments && payments.length > 0 ? "MULTIPLE" : "PENDING"),
                     cashRegisterId,
-                    customerId
+                    customerId,
+                    storeId,
                 },
             });
 
-            // 2. Create Payments
+            // 2. Cria Pagamentos
             if (payments && Array.isArray(payments)) {
                 for (const p of payments) {
                     await tx.payment.create({
-                        data: {
-                            amount: p.amount,
-                            method: p.method,
-                            orderId: newOrder.id
-                        }
+                        data: { amount: p.amount, method: p.method, orderId: newOrder.id }
                     });
 
-                    // Immediate Treasury Entry for PIX and CARD
                     if (p.method === "PIX" || p.method === "CARTAO") {
                         await tx.treasuryTransaction.create({
                             data: {
@@ -66,35 +80,31 @@ export async function POST(request: Request) {
                                 amount: p.amount,
                                 type: "IN",
                                 category: "VENDA_DIGITAL",
-                                userId: "SYSTEM",
-                                date: new Date()
+                                userId,
+                                date: new Date(),
+                                storeId,
                             }
                         });
                     }
 
-                    // 3. Create Account Receivable for CREDIARIO
                     if (p.method === "CREDIARIO") {
-                        if (!customerId) {
-                            throw new Error("Cliente é obrigatório para vendas no Crediário.");
-                        }
-                        if (!p.dueDate) {
-                            throw new Error("Data de vencimento é obrigatória para Crediário.");
-                        }
+                        if (!customerId) throw new Error("Cliente é obrigatório para vendas no Crediário.");
+                        if (!p.dueDate) throw new Error("Data de vencimento é obrigatória para Crediário.");
 
                         await tx.accountReceivable.create({
                             data: {
                                 amount: p.amount,
                                 dueDate: new Date(p.dueDate),
                                 status: "PENDING",
-                                customerId: customerId,
-                                orderId: newOrder.id
+                                customerId,
+                                orderId: newOrder.id,
                             }
                         });
                     }
                 }
             }
 
-            // 4. Stock Deduction (if COMPLETED)
+            // 3. Dedução de estoque (se COMPLETED)
             if (newOrder.status === "COMPLETED") {
                 const parsedItems = JSON.parse(items);
                 for (const item of parsedItems) {
@@ -116,7 +126,8 @@ export async function POST(request: Request) {
                                 variantId: item.variantId,
                                 change: -item.qty,
                                 reason: `Venda #${newOrder.id.slice(0, 8)}`,
-                                userId: "SYSTEM"
+                                userId,
+                                storeId,
                             }
                         });
                     }
@@ -129,9 +140,6 @@ export async function POST(request: Request) {
         return NextResponse.json(order);
     } catch (error: any) {
         console.error("Error creating order:", error);
-        return NextResponse.json(
-            { error: `Error creating order: ${error.message || "Unknown error"}` },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: `Error creating order: ${error.message || "Unknown error"}` }, { status: 500 });
     }
 }

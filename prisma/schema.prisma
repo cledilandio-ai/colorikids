@@ -7,18 +7,71 @@ datasource db {
   url      = env("POSTGRES_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   // OWNER, SELLER
-  maxDiscount Float    @default(0) // Maximum discount percentage allowed
-  permissions String[] @default([]) // Array of accessible route keys (e.g. "finance", "stock")
-  shouldChangePassword Boolean @default(false)
+// =============================================================================
+// MULTI-TENANT: Store é o tenant root. Todos os dados pertencem a uma Store.
+// =============================================================================
+
+model Store {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique // ex: "colorikids" — usado em URLs e identificação
+  status      String    @default("ACTIVE") // ACTIVE, SUSPENDED, CANCELLED
+  planType    String    @default("BASIC")  // BASIC, PRO (para futuras expansões)
+
+  // Relações
+  subscription  Subscription?
+  users         User[]
+  products      Product[]
+  orders        Order[]
+  customers     Customer[]
+  cashRegisters CashRegister[]
+  storeConfig   StoreConfig?
+  treasuryTransactions TreasuryTransaction[]
+  transactionCategories TransactionCategory[]
+  stockMovements StockMovement[]
+  inventoryLogs  InventoryLog[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Subscription {
+  id          String   @id @default(uuid())
+  storeId     String   @unique
+  store       Store    @relation(fields: [storeId], references: [id])
+  status      String   @default("ACTIVE") // ACTIVE, OVERDUE, CANCELLED
+  amount      Float    // Valor da mensalidade
+  billingDay  Int      @default(1) // Dia do mês para cobrança
+  nextDueDate DateTime
+  notes       String?  // Observações manuais (ex: "Paga via Pix em 05/04")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// =============================================================================
+// USER — Pertence a uma Store. Role SUPER_ADMIN não tem storeId (acesso global).
+// =============================================================================
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        String   // SUPER_ADMIN, OWNER, SELLER
+  maxDiscount Float    @default(0)
+  permissions String[] @default([])
+  shouldChangePassword Boolean @default(false)
+
+  storeId     String?  // null apenas para SUPER_ADMIN
+  store       Store?   @relation(fields: [storeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// =============================================================================
+// PRODUTOS
+// =============================================================================
 
 model Product {
   id          String   @id @default(uuid())
@@ -27,9 +80,12 @@ model Product {
   basePrice   Float
   costPrice   Float    @default(0)
   imageUrl    String?
-  category    String? // Vestido, Conjunto, Blusa, etc.
-  gender      String? // MASCULINO, FEMININO, UNISSEX
-  supplier    String? // Fornecedor do produto
+  category    String?
+  gender      String?
+  supplier    String?
+
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
 
   variants    ProductVariant[]
   active      Boolean  @default(true)
@@ -44,19 +100,21 @@ model ProductVariant {
   size          String
   color         String?
   stockQuantity Int      @default(0)
-  minStock      Int      @default(1) // Estoque mínimo de segurança
-  lastSoldAt    DateTime?            // Data da última venda (Liquidez)
-  lastRestockAt DateTime?            // Data da última reposição (Idade do Lote)
+  minStock      Int      @default(1)
+  lastSoldAt    DateTime?
+  lastRestockAt DateTime?
   sku           String?  @unique
   imageUrl      String?
   inventoryLogs InventoryLog[]
   stockMovements StockMovement[]
-  active        Boolean  @default(true) // For Soft Delete
+  active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
-
+// =============================================================================
+// CAIXA
+// =============================================================================
 
 model CashRegister {
   id            String   @id @default(uuid())
@@ -64,9 +122,13 @@ model CashRegister {
   closedAt      DateTime?
   initialAmount Float
   finalAmount   Float?
-  retainedAmount Float    @default(0) // Amount kept in drawer for next shift
+  retainedAmount Float   @default(0)
   status        String   // OPEN, CLOSED
-  userId        String?  // Who opened/closed
+  userId        String?
+
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id])
+
   orders        Order[]
   transactions  CashTransaction[]
   createdAt     DateTime @default(now())
@@ -76,25 +138,39 @@ model CashRegister {
 model CashTransaction {
   id              String       @id @default(uuid())
   amount          Float
-  type            String       // IN (Reforço), OUT (Sangria/Reembolso)
+  type            String       // IN, OUT
   description     String?
   cashRegisterId  String
   cashRegister    CashRegister @relation(fields: [cashRegisterId], references: [id])
   createdAt       DateTime     @default(now())
 }
 
+// =============================================================================
+// CLIENTES
+// =============================================================================
+
 model Customer {
   id        String   @id @default(uuid())
   name      String
   phone     String?
-  cpf       String?  @unique
+  cpf       String?
   email     String?
   address   String?
+
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+
   orders    Order[]
   receivables AccountReceivable[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([cpf, storeId]) // CPF único por loja (não global)
 }
+
+// =============================================================================
+// PEDIDOS
+// =============================================================================
 
 model Payment {
   id        String   @id @default(uuid())
@@ -125,15 +201,18 @@ model Order {
   total         Float
   status        String   // PENDING, COMPLETED, CANCELLED
   type          String   // WEB, POS
-  paymentMethod String?  // DEPRECATED: Use payments relation. Kept for backward compatibility or primary method.
+  paymentMethod String?  // DEPRECATED: Use payments relation.
   items         String   // JSON string of items
-  
+
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id])
+
   cashRegisterId String?
   cashRegister  CashRegister? @relation(fields: [cashRegisterId], references: [id])
-  
+
   customerId    String?
   customer      Customer? @relation(fields: [customerId], references: [id])
-  
+
   payments      Payment[]
   receivables   AccountReceivable[]
 
@@ -142,19 +221,31 @@ model Order {
   active        Boolean  @default(true)
 }
 
+// =============================================================================
+// CONFIGURAÇÃO DA LOJA (era singleton global, agora por Store)
+// =============================================================================
+
 model StoreConfig {
-  id          Int      @id @default(1)
+  id          String   @id @default(uuid())
   whatsapp    String   @default("5511999999999")
-  whatsappMessage String @default("Olá! Vim pelo site da Colorikids e gostaria de saber mais.")
-  companyName String   @default("Colorikids")
+  whatsappMessage String @default("Olá! Vim pelo site e gostaria de saber mais.")
+  companyName String   @default("Minha Loja")
   cnpj        String?
   instagram   String?
   pixKey      String?
-  pixKeyType  String?  // CPF, CNPJ, EMAIL, PHONE, RANDOM
-  featuredImageUrls String? // JSON string ["url1", "url2"]
+  pixKeyType  String?
+  featuredImageUrls String?
+
+  storeId     String   @unique
+  store       Store    @relation(fields: [storeId], references: [id])
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// =============================================================================
+// ESTOQUE
+// =============================================================================
 
 model InventoryLog {
   id        String   @id @default(uuid())
@@ -163,6 +254,10 @@ model InventoryLog {
   change    Int
   reason    String
   userId    String?
+
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+
   createdAt DateTime @default(now())
 }
 
@@ -170,29 +265,72 @@ model StockMovement {
   id              String         @id @default(uuid())
   type            String         // IN, OUT
   quantity        Int
-  costPrice       Float?         // Unit cost at time of movement
+  costPrice       Float?
   productVariantId String
   productVariant  ProductVariant @relation(fields: [productVariantId], references: [id])
-  reason          String?        // "Restock", "Sale", "Correction"
-  createdAt       DateTime       @default(now())
+  reason          String?
+
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id])
+
+  createdAt       DateTime @default(now())
 }
+
+// =============================================================================
+// FINANCEIRO / TESOURARIA
+// =============================================================================
 
 model TreasuryTransaction {
   id          String   @id @default(uuid())
   description String
   amount      Float
   type        String   // IN, OUT
-  category    String   // "RESTOCK", "SALES_PDV", "OPERATIONAL", etc.
+  category    String
   date        DateTime @default(now())
   userId      String?
+
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model TransactionCategory {
   id        String   @id @default(uuid())
-  name      String   @unique
+  name      String
   type      String   // IN, OUT, BOTH
+
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([name, storeId]) // Nome único por loja
 }
+
+// =============================================================================
+// PLATFORM — Configurações globais da plataforma SaaS (gerenciadas pelo Super Admin)
+// =============================================================================
+
+model PlatformConfig {
+  id                  Int      @id @default(1) // Singleton — sempre 1 registro
+  heroTitle           String   @default("Bem-vindo à nossa plataforma")
+  heroSubtitle        String   @default("Gerencie sua loja com facilidade.")
+  ctaText             String   @default("Acessar meu Painel")
+  ctaLink             String   @default("/login")
+  logoUrl             String?
+  backgroundImageUrl  String?
+  primaryColor        String   @default("#e91e8c")
+  accentColor         String   @default("#9c27b0")
+  platformName        String   @default("Vast Cosmos")
+  contactEmail        String?
+  socialLinks         String   @default("{}") // JSON: { instagram, whatsapp, facebook }
+  platformInstagram   String?  // URL do Instagram da plataforma (campo direto)
+  platformWhatsapp    String?  // Número WhatsApp da plataforma (campo direto)
+  footerText          String?
+  showActiveStores    Boolean  @default(true) // Exibir vitrine de lojas na home
+  updatedAt           DateTime @updatedAt
+}
+

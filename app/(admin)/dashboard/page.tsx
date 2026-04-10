@@ -3,11 +3,19 @@ import { prisma } from "@/lib/db";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getServerAuthContext } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 // Force dynamic rendering as we are fetching data that changes constantly
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+    const ctx = await getServerAuthContext();
+    if (!ctx || !ctx.storeId) {
+        redirect("/login");
+    }
+    const storeId = ctx.storeId;
+
     // Determine start of today
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -23,21 +31,23 @@ export default async function DashboardPage() {
         prisma.order.aggregate({
             _sum: { total: true },
             where: {
+                storeId,
                 createdAt: { gte: startOfDay },
                 status: { not: "CANCELLED" }
             }
         }),
         prisma.order.count({
-            where: { createdAt: { gte: startOfDay } }
+            where: { storeId, createdAt: { gte: startOfDay } }
         }),
         prisma.order.count({
-            where: { status: "PENDING" }
+            where: { storeId, status: "PENDING" }
         }),
         prisma.productVariant.count({
-            where: { stockQuantity: { lte: 5 } }
+            where: { product: { storeId }, stockQuantity: { lte: 5 } }
         }),
         prisma.order.findMany({
             take: 5,
+            where: { storeId },
             orderBy: { createdAt: "desc" },
             include: { customer: true }
         })

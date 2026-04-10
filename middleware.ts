@@ -1,44 +1,92 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
-export function middleware(request: NextRequest) {
-    const role = request.cookies.get("user_role")?.value;
-    const path = request.nextUrl.pathname;
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || "colorikids-saas-secret-change-in-production-32chars"
+);
 
-    // Protect Admin Routes (Products, Dashboard, Orders, Settings, Finance)
-    const isProtectedProductRoute =
-        path === "/products" ||
-        path === "/products/new" ||
-        (path.startsWith("/products/") && path.endsWith("/edit"));
+const COOKIE_NAME = "auth_token";
 
-    if (path.startsWith("/admin") || isProtectedProductRoute) {
-        if (role !== "OWNER") {
-            // If seller tries to access restricted admin routes, redirect to POS
-            if (role === "SELLER") {
-                return NextResponse.redirect(new URL("/pos", request.url));
-            }
-            // If not logged in, redirect to login
-            return NextResponse.redirect(new URL("/login", request.url));
-        }
-    }
+// Rotas que não precisam de autenticação
+const PUBLIC_PATHS = ["/login", "/products", "/api/auth/login", "/api/products/public"];
 
-    // Protect Dashboard and Orders (Accessible by OWNER and SELLER)
-    if (path.startsWith("/dashboard") || path.startsWith("/orders")) {
-        if (role !== "OWNER" && role !== "SELLER") {
-            return NextResponse.redirect(new URL("/login", request.url));
-        }
-    }
+async function getTokenPayload(request: NextRequest) {
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
-    // Protect POS Route
-    if (path.startsWith("/pos")) {
-        if (!role) {
-            return NextResponse.redirect(new URL("/login", request.url));
-        }
-    }
+export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
 
+  // Deixa rotas públicas passarem
+  if (PUBLIC_PATHS.some((p) => path.startsWith(p))) {
     return NextResponse.next();
+  }
+
+  const payload = await getTokenPayload(request);
+  const role = payload?.role as string | undefined;
+  const storeId = payload?.storeId as string | undefined;
+
+  // ── Rotas Super Admin ────────────────────────────────────────────────────────
+  if (path.startsWith("/super-admin")) {
+    if (role !== "SUPER_ADMIN") {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // ── Rotas que exigem login (qualquer role com storeId) ────────────────────
+  const requiresAuth = ["/admin", "/dashboard", "/orders", "/pos", "/settings", "/products/new", "/financeiro", "/clientes", "/caixas", "/finance"];
+  const needsAuth = requiresAuth.some((r) => path.startsWith(r));
+
+  if (needsAuth) {
+    if (!payload) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    if (!storeId) {
+      if (role === "SUPER_ADMIN") {
+        return NextResponse.redirect(new URL("/super-admin", request.url));
+      }
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
+  // ── Rotas restritas ao OWNER ───────────────────────────────────────────────
+  const ownerOnly = ["/admin", "/settings", "/financeiro", "/finance"];
+  const isOwnerOnly = ownerOnly.some((r) => path.startsWith(r));
+
+  if (isOwnerOnly && role !== "OWNER" && role !== "SUPER_ADMIN") {
+    return NextResponse.redirect(new URL("/pos", request.url));
+  }
+
+  // ── Rotas edit de produto ──────────────────────────────────────────────────
+  const isProductEdit = path.startsWith("/products/") && path.endsWith("/edit");
+  if ((path === "/products/new" || isProductEdit) && role !== "OWNER" && role !== "SUPER_ADMIN") {
+    return NextResponse.redirect(new URL("/pos", request.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
-    matcher: ["/dashboard/:path*", "/products/:path*", "/pos/:path*", "/orders/:path*", "/settings/:path*", "/financeiro/:path*", "/admin/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/products/:path*",
+    "/pos/:path*",
+    "/orders/:path*",
+    "/settings/:path*",
+    "/financeiro/:path*",
+    "/finance/:path*",
+    "/admin/:path*",
+    "/super-admin/:path*",
+    "/clientes/:path*",
+    "/caixas/:path*",
+  ],
 };
