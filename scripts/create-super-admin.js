@@ -15,9 +15,9 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 // ─── CONFIGURE AQUI ───────────────────────────────────────────────────────────
-const SUPER_ADMIN_NAME  = "Geraldo (Admin)";
-const SUPER_ADMIN_EMAIL = "admin@seudominio.com";
-const SUPER_ADMIN_PASS  = "sua-senha-segura-aqui"; // Troque antes de rodar!
+const SUPER_ADMIN_NAME = "Cledilandio (Admin)";
+const SUPER_ADMIN_EMAIL = "admin@cledilandio.com";
+const SUPER_ADMIN_PASS = "Cle882142#"; // Troque antes de rodar!
 // ──────────────────────────────────────────────────────────────────────────────
 
 async function main() {

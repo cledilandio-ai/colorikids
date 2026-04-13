@@ -24,9 +24,9 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-    const [whatsapp, setWhatsapp] = useState("5511999999999");
-    const [whatsappMessage, setWhatsappMessage] = useState("Olá! Vim pelo site da Colorikids e gostaria de saber mais.");
-    const [companyName, setCompanyName] = useState("Colorikids");
+    const [whatsapp, setWhatsapp] = useState("");
+    const [whatsappMessage, setWhatsappMessage] = useState("Olá! Vim pelo site e gostaria de saber mais.");
+    const [companyName, setCompanyName] = useState("");
     const [cnpj, setCnpj] = useState("");
     const [instagram, setInstagram] = useState("");
     const [featuredImageUrls, setFeaturedImageUrls] = useState<Highlight[]>([]);

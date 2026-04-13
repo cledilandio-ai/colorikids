@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Archive, PanelLeftClose, PanelLeftOpen, ShoppingBag } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabaseClient";
 import { useSettings } from "@/context/SettingsContext";
 
 interface AdminSidebarProps {
@@ -137,7 +136,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
 
                     <button
                         onClick={async () => {
-                            await supabase.auth.signOut();
+                            await fetch("/api/auth/logout", { method: "POST" });
                             window.location.href = "/login";
                         }}
                         className={cn(
