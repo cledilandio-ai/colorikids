@@ -537,41 +537,11 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                                         return;
                                                                     }
 
-                                                                    // Import dinâmico
-                                                                    const { compressProductImage } = await import("@/lib/imageCompression");
-                                                                    const compressedFile = await compressProductImage(file);
+                                                                    // Usa a API centralizada (preset: product - 800px / 300KB)
+                                                                    const { uploadImage } = await import("@/lib/uploadImage");
+                                                                    const url = await uploadImage(file, "product");
 
-                                                                    const sanitizedFileName = file.name
-                                                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, "")
-                                                                        .replace(/\s+/g, '-')
-                                                                        .replace(/[^a-zA-Z0-9.-]/g, "")
-                                                                        .toLowerCase();
-
-                                                                    let finalName = sanitizedFileName;
-                                                                    if (compressedFile.type === 'image/webp' && !finalName.endsWith('.webp')) {
-                                                                        finalName = finalName.replace(/\.[^/.]+$/, "") + ".webp";
-                                                                    }
-
-                                                                    const filename = "public/" + Date.now() + "_" + finalName;
-
-                                                                    const { data, error } = await supabase.storage
-                                                                        .from("uploads")
-                                                                        .upload(filename, compressedFile, {
-                                                                            upsert: false,
-                                                                            contentType: compressedFile.type
-                                                                        });
-
-                                                                    if (error) {
-                                                                        console.error("Erro no upload:", error);
-                                                                        alert("Erro ao fazer upload da imagem.");
-                                                                        return;
-                                                                    }
-
-                                                                    const { data: publicUrlData } = supabase.storage
-                                                                        .from("uploads")
-                                                                        .getPublicUrl(filename);
-
-                                                                    updateVariant(index, "imageUrl", publicUrlData.publicUrl);
+                                                                    updateVariant(index, "imageUrl", url);
 
                                                                 } catch (err) {
                                                                     console.error(err);

@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Globe, Upload, X, Loader2 } from "lucide-react";
-import { compressImage } from "@/lib/imageCompression";
-import { supabase } from "@/lib/supabaseClient";
+import { uploadImage } from "@/lib/uploadImage";
 
 interface Store {
     id: string;
@@ -64,36 +63,11 @@ function ImageUploadField({
         setError(null);
 
         try {
-            // 1. Comprimir antes de qualquer upload (max 1080px, max 1MB, converte p/ WebP)
-            const compressed = await compressImage(file);
-
-            // 2. Nome sanitizado
-            const baseName = file.name
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-zA-Z0-9.-]/g, "_");
-            const finalName = baseName.replace(/\.[^/.]+$/, "") + ".webp";
-            const path = `${folder}/${Date.now()}_${finalName}`;
-
-            // 3. Upload para o Supabase Storage
-            const { error: uploadError } = await supabase.storage
-                .from(bucket)
-                .upload(path, compressed, {
-                    upsert: false,
-                    contentType: "image/webp",
-                });
-
-            if (uploadError) {
-                setError("Erro ao fazer upload: " + uploadError.message);
-                return;
-            }
-
-            // 4. URL pública
-            const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
-            onChange(urlData.publicUrl);
-        } catch (err) {
+            const url = await uploadImage(file, "banner");
+            onChange(url);
+        } catch (err: any) {
             console.error(err);
-            setError("Erro inesperado no upload.");
+            setError(err.message || "Erro inesperado no upload.");
         } finally {
             setUploading(false);
             if (inputRef.current) inputRef.current.value = "";

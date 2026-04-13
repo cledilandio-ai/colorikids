@@ -6,7 +6,7 @@ import { Save, Trash, Plus, Pencil } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
-import { compressImage } from "@/lib/imageCompression";
+import { uploadImage } from "@/lib/uploadImage";
 
 export default function SettingsPage() {
     const { whatsapp, whatsappMessage, companyName, cnpj, instagram, pixKey, pixKeyType, featuredImageUrls, refreshSettings } = useSettings();
@@ -110,41 +110,12 @@ export default function SettingsPage() {
                     return;
                 }
 
-                const compressedFile = await compressImage(file);
-
-                const sanitizedFileName = file.name
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, "")
-                    .replace(/[^a-zA-Z0-9.-]/g, "_");
-
-                // Ajustar extensão se virou webp
-                let finalName = sanitizedFileName;
-                if (compressedFile.type === 'image/webp' && !finalName.endsWith('.webp')) {
-                    finalName = finalName.replace(/\.[^/.]+$/, "") + ".webp";
-                }
-
-                const filename = "public/" + Date.now() + "_" + finalName;
-
-                const { data, error } = await supabase.storage
-                    .from("uploads")
-                    .upload(filename, compressedFile, {
-                        upsert: false,
-                        contentType: compressedFile.type
-                    });
-
-                if (error) {
-                    console.error("Erro no upload:", error);
-                    alert("Erro ao fazer upload da imagem.");
-                    return;
-                }
-
-                const { data: publicUrlData } = supabase.storage
-                    .from("uploads")
-                    .getPublicUrl(filename);
+                // Usa API de upload via servidor protegendo contra HEIC (preset banner 1080px 500kb)
+                const url = await uploadImage(file, "banner");
 
                 setFormData(prev => ({
                     ...prev,
-                    featuredImageUrls: [...prev.featuredImageUrls, { url: publicUrlData.publicUrl, instagramLink: "" }]
+                    featuredImageUrls: [...prev.featuredImageUrls, { url, instagramLink: "" }]
                 }));
 
             } catch (err) {
