@@ -1,11 +1,20 @@
 import { prisma } from "@/lib/db";
 import { FinanceTabs } from "@/components/admin/finance/FinanceTabs";
+import { getServerAuthContext } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
 export default async function FinancePage() {
+    const ctx = await getServerAuthContext();
+    if (!ctx || !ctx.storeId) {
+        redirect("/login");
+    }
+    const storeId = ctx.storeId;
+
     // Fetch all transactions
     const transactions = await prisma.treasuryTransaction.findMany({
+        where: { storeId },
         orderBy: { date: 'desc' },
     });
 
@@ -30,16 +39,19 @@ export default async function FinancePage() {
     const orders = await prisma.order.findMany({
         where: {
             status: 'COMPLETED',
-            active: true
+            active: true,
+            storeId
         },
         orderBy: { createdAt: 'desc' }
     });
 
     const products = await prisma.product.findMany({
+        where: { storeId },
         select: { id: true, costPrice: true }
     });
 
     const variants = await prisma.productVariant.findMany({
+        where: { product: { storeId } },
         select: { id: true, productId: true }
     });
 
@@ -86,8 +98,10 @@ export default async function FinancePage() {
         };
     });
 
-    const config = await prisma.storeConfig.findFirst();
-    const companyName = config?.companyName || 'Vast Cosmos';
+    const config = await prisma.storeConfig.findUnique({
+        where: { storeId }
+    });
+    const companyName = config?.companyName || 'Minha Loja';
 
     return (
         <div className="space-y-6">

@@ -2,14 +2,23 @@ import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StockDashboardClient } from "@/components/admin/StockDashboardClient";
+import { getServerAuthContext } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryDashboardPage() {
+    const ctx = await getServerAuthContext();
+    if (!ctx || !ctx.storeId) {
+        redirect("/login");
+    }
+    const storeId = ctx.storeId;
+
     // 1. Fetch Data
     // 1. Busca todos os variantes de produtos do banco de dados
     // Inclui os dados do produto pai para acesso a preço e custo
     const variants = await prisma.productVariant.findMany({
+        where: { product: { storeId } },
         include: {
             product: true,
         },

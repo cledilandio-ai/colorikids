@@ -1,13 +1,21 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getServerAuthContext } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 
 export default async function OrdersPage({ searchParams }: { searchParams: { status?: string } }) {
-    const where = {
+    const ctx = await getServerAuthContext();
+    if (!ctx || !ctx.storeId) {
+        redirect("/login");
+    }
+
+    const where: any = {
         ...(searchParams.status ? { status: searchParams.status } : {}),
-        active: true
+        active: true,
+        storeId: ctx.storeId
     };
 
     const orders = await prisma.order.findMany({

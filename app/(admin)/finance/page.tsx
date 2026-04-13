@@ -4,11 +4,20 @@ import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CloseRegisterButton } from "@/components/admin/CloseRegisterButton";
+import { getServerAuthContext } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
 export default async function FinancePage() {
+    const ctx = await getServerAuthContext();
+    if (!ctx || !ctx.storeId) {
+        redirect("/login");
+    }
+    const storeId = ctx.storeId;
+
     const registers = await prisma.cashRegister.findMany({
+        where: { storeId },
         orderBy: { createdAt: "desc" },
         include: { orders: true },
     });
