@@ -411,8 +411,8 @@ export default function NewProductPage() {
                                                                     }
 
                                                                     // Import dinâmico da compressão para evitar SSR issues ou circular deps
-                                                                    const { compressImage } = await import("@/lib/imageCompression");
-                                                                    const compressedFile = await compressImage(file);
+                                                                    const { compressProductImage } = await import("@/lib/imageCompression");
+                                                                    const compressedFile = await compressProductImage(file);
 
                                                                     const sanitizedFileName = file.name
                                                                         .normalize('NFD').replace(/[\u0300-\u036f]/g, "") // Remove acentos

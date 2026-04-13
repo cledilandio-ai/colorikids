@@ -538,8 +538,8 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
                                                                     }
 
                                                                     // Import dinâmico
-                                                                    const { compressImage } = await import("@/lib/imageCompression");
-                                                                    const compressedFile = await compressImage(file);
+                                                                    const { compressProductImage } = await import("@/lib/imageCompression");
+                                                                    const compressedFile = await compressProductImage(file);
 
                                                                     const sanitizedFileName = file.name
                                                                         .normalize('NFD').replace(/[\u0300-\u036f]/g, "")

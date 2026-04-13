@@ -1,42 +1,66 @@
 
 import imageCompression from 'browser-image-compression';
 
+// Formatos HEIC/HEIF do iPhone que o browser-image-compression não processa nativamente
+const HEIC_TYPES = ['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence'];
+
 /**
- * Comprime uma imagem antes do upload.
- * Configurado para: Max 1080px (largura ou altura), Max 1MB, WebP.
+ * Comprime imagens de DESTAQUE / LOGO / BANNER.
+ * Configurado para: Max 1080px, Max 500KB, WebP 80%.
+ * Uma foto de iPhone de 10MB vira ~150–300KB.
  */
 export async function compressImage(file: File): Promise<File> {
-    // Se não for imagem, retorna original
     if (!file.type.startsWith('image/')) return file;
 
+    // HEIC (iPhone "Alta Eficiência") — alerta pois compressão será limitada
+    if (HEIC_TYPES.includes(file.type.toLowerCase())) {
+        console.warn('⚠️ Arquivo HEIC detectado. Para melhores resultados, salve a foto como JPEG antes de enviar.');
+    }
+
     const options = {
-        maxSizeMB: 1, // Max 1MB
-        maxWidthOrHeight: 1080, // Resize to max 1080px
+        maxSizeMB: 0.5,          // Max 500KB — reduz de 10MB para ~200KB
+        maxWidthOrHeight: 1080,   // Max 1080px de largura ou altura
         useWebWorker: true,
-        fileType: 'image/webp', // Convert to WebP
-        initialQuality: 0.8, // 80% quality
+        fileType: 'image/webp',   // Converte para WebP sempre
+        initialQuality: 0.8,      // 80% de qualidade
     };
 
     try {
-        console.log(`Compressing ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
+        const before = (file.size / 1024 / 1024).toFixed(2);
         const compressedFile = await imageCompression(file, options);
-        console.log(`Compressed to ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
-
-        // Criar um novo arquivo com a extensão correta se mudou para webp
-        // O Supabase storage prefere que a extensão bata com o mime type, embora não quebre se não bater.
-        // Mas a gente definiu 'image/webp' nas options.
-        // Vamos garantir que o nome do arquivo tenha .webp se o output for webp
-        /* 
-           Nota: browser-image-compression retorna um Blob/File. Se o type for image/webp, 
-           mas o nome original for .jpg, seria bom mudar para .webp, mas isso muda a URL pública.
-           O plano original do user pedia para MANTER O NOME/PATH. 
-           Porém, isso era pro LEGADO. Para NOVOS uploads, podemos usar .webp no nome.
-           Vamos manter o nome limpo.
-        */
-
+        const after = (compressedFile.size / 1024).toFixed(0);
+        console.log(`✅ Compressão: ${before}MB → ${after}KB`);
         return compressedFile;
     } catch (error) {
-        console.error("Error compressing image:", error);
-        return file; // Fallback to original if compression fails
+        console.error("Erro ao comprimir imagem:", error);
+        return file; // Fallback para o original
+    }
+}
+
+/**
+ * Comprime imagens de PRODUTO (catálogo/vitrine).
+ * Mais agressivo: Max 800px, Max 300KB.
+ * Ideal para thumbnails e grid de produtos.
+ */
+export async function compressProductImage(file: File): Promise<File> {
+    if (!file.type.startsWith('image/')) return file;
+
+    const options = {
+        maxSizeMB: 0.3,           // Max 300KB
+        maxWidthOrHeight: 800,    // Max 800px — suficiente para grid de produtos
+        useWebWorker: true,
+        fileType: 'image/webp',
+        initialQuality: 0.75,     // 75% de qualidade
+    };
+
+    try {
+        const before = (file.size / 1024 / 1024).toFixed(2);
+        const compressedFile = await imageCompression(file, options);
+        const after = (compressedFile.size / 1024).toFixed(0);
+        console.log(`✅ Produto comprimido: ${before}MB → ${after}KB`);
+        return compressedFile;
+    } catch (error) {
+        console.error("Erro ao comprimir imagem de produto:", error);
+        return file;
     }
 }
