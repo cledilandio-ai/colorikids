@@ -21,18 +21,48 @@ export default async function AdminLayout({
         redirect("/super-admin");
     }
 
-    // Busca permissões do usuário no banco usando o userId do JWT
     let permissions: string[] = [];
     try {
         const user = await prisma.user.findUnique({
             where: { id: ctx.userId },
-            select: { permissions: true },
+            include: { 
+                store: {
+                    include: { subscription: true }
+                } 
+            },
         });
-        if (user?.permissions) {
+        if (user) {
             permissions = user.permissions;
+
+            // Muralha de Pagamento: Verifica Status da Loja
+            const store = user.store;
+            if (store && ctx.role === "OWNER") {
+                if (store.status === "PENDING" || store.status === "SUSPENDED") {
+                    redirect("/assinatura");
+                }
+                
+                // Muralha de Pagamento: Verifica Vencimento (30 dias)
+                if (store.subscription && store.subscription.nextDueDate) {
+                    const today = new Date();
+                    const due = new Date(store.subscription.nextDueDate);
+                    
+                    // Se venceu ontem para trás, bloqueia
+                    if (today > due && store.subscription.status !== "ACTIVE") {
+                       redirect("/assinatura");
+                    } else if (today > due && store.subscription.status === "ACTIVE") {
+                       // Opcional: Atualiza o status para OVERDUE automatico
+                       await prisma.subscription.update({
+                           where: { id: store.subscription.id },
+                           data: { status: "OVERDUE" }
+                       });
+                       redirect("/assinatura");
+                    }
+                }
+            }
         }
-    } catch (e) {
-        console.error("Error fetching permissions", e);
+    } catch (e: any) {
+        if (e.message === "NEXT_REDIRECT") throw e; // Necessário para não engolir o redirect do Next.js
+        console.error("Error fetching permissions/store", e);
     }
 
     return (

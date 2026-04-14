@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_URL")
+  provider  = "postgresql"
+  url       = env("POSTGRES_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // =============================================================================
@@ -15,7 +16,7 @@ model Store {
   id          String    @id @default(uuid())
   name        String
   slug        String    @unique // ex: "colorikids" — usado em URLs e identificação
-  status      String    @default("ACTIVE") // ACTIVE, SUSPENDED, CANCELLED
+  status      String    @default("PENDING") // PENDING, ACTIVE, SUSPENDED, CANCELLED
   planType    String    @default("BASIC")  // BASIC, PRO (para futuras expansões)
 
   // Relações
@@ -310,6 +311,19 @@ model TransactionCategory {
   @@unique([name, storeId]) // Nome único por loja
 }
 
+model RegistrationRequest {
+  id              String   @id @default(uuid())
+  storeName       String
+  storeSlug       String   @unique
+  ownerName       String
+  ownerEmail      String
+  ownerPassword   String   // Senha hashada
+  phone           String?
+  status          String   @default("PENDING") // PENDING, REJECTED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 // =============================================================================
 // PLATFORM — Configurações globais da plataforma SaaS (gerenciadas pelo Super Admin)
 // =============================================================================
@@ -329,6 +343,10 @@ model PlatformConfig {
   socialLinks         String   @default("{}") // JSON: { instagram, whatsapp, facebook }
   platformInstagram   String?  // URL do Instagram da plataforma (campo direto)
   platformWhatsapp    String?  // Número WhatsApp da plataforma (campo direto)
+  platformPixKey      String?  // Chave PIX da plataforma (Cobrança)
+  platformPixName     String?  // Nome completo do titular do PIX
+  platformPixCity     String?  // Cidade do titular do PIX (max 15 caracteres)
+  platformPlanValue   Float    @default(49.90) // Valor da mensalidade da plataforma
   footerText          String?
   showActiveStores    Boolean  @default(true) // Exibir vitrine de lojas na home
   updatedAt           DateTime @updatedAt

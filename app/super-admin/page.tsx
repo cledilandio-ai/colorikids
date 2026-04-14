@@ -29,6 +29,10 @@ interface PlatformConfig {
     showActiveStores: boolean;
     platformInstagram: string | null;
     platformWhatsapp: string | null;
+    platformPixKey: string | null;
+    platformPixName: string | null;
+    platformPixCity: string | null;
+    platformPlanValue: number;
 }
 
 // ─── Componente de Upload de Imagem com Compressão ────────────────────────────
@@ -176,11 +180,12 @@ function ImageUploadField({
 
 export default function SuperAdminPage() {
     const [stores, setStores] = useState<Store[]>([]);
+    const [requests, setRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-    const [activeTab, setActiveTab] = useState<"stores" | "platform">("stores");
+    const [activeTab, setActiveTab] = useState<"stores" | "requests" | "platform">("stores");
 
     // Platform config state
     const [platformConfig, setPlatformConfig] = useState<PlatformConfig>({
@@ -194,10 +199,13 @@ export default function SuperAdminPage() {
         accentColor: "#9c27b0",
         platformName: "",
         contactEmail: null,
-        footerText: null,
         showActiveStores: true,
         platformInstagram: null,
         platformWhatsapp: null,
+        platformPixKey: null,
+        platformPixName: null,
+        platformPixCity: null,
+        platformPlanValue: 49.90,
     });
     const [savingPlatform, setSavingPlatform] = useState(false);
     const [platformMessage, setPlatformMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -214,8 +222,14 @@ export default function SuperAdminPage() {
 
     useEffect(() => {
         fetchStores();
+        fetchRequests();
         fetchPlatformConfig();
     }, []);
+
+    async function fetchRequests() {
+        const res = await fetch("/api/super-admin/requests");
+        if (res.ok) setRequests(await res.json());
+    }
 
     async function fetchStores() {
         setLoading(true);
@@ -239,10 +253,13 @@ export default function SuperAdminPage() {
                 accentColor: data.accentColor ?? "#9c27b0",
                 platformName: data.platformName ?? "",
                 contactEmail: data.contactEmail ?? null,
-                footerText: data.footerText ?? null,
                 showActiveStores: data.showActiveStores ?? true,
                 platformInstagram: data.platformInstagram ?? null,
                 platformWhatsapp: data.platformWhatsapp ?? null,
+                platformPixKey: data.platformPixKey ?? null,
+                platformPixName: data.platformPixName ?? null,
+                platformPixCity: data.platformPixCity ?? null,
+                platformPlanValue: data.platformPlanValue ?? 49.90,
             });
         }
     }
@@ -286,6 +303,49 @@ export default function SuperAdminPage() {
         setSubmitting(false);
     }
 
+    async function deleteStore(storeId: string, storeName: string) {
+        if (!confirm(`Tem certeza que deseja excluir DE VEZ a loja ${storeName} e todos os seus dados? Essa ação não pode ser desfeita.`)) return;
+        const res = await fetch(`/api/super-admin/stores?id=${storeId}`, { method: "DELETE" });
+        if (res.ok) {
+            setMessage({ type: "success", text: `Loja ${storeName} excluída com sucesso.` });
+            fetchStores();
+        } else {
+            const err = await res.json();
+            setMessage({ type: "error", text: err.error });
+        }
+    }
+
+    async function approveRequest(requestId: string) {
+        if (!confirm("Confirmar pagamento e CRIAR esta loja agora?")) return;
+        setLoading(true);
+        const res = await fetch("/api/super-admin/requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ requestId, action: "APPROVE" })
+        });
+        if (res.ok) {
+            setMessage({ type: "success", text: "✅ Loja criada e ativada com sucesso!" });
+            fetchStores();
+            fetchRequests();
+        } else {
+            const err = await res.json();
+            setMessage({ type: "error", text: err.error });
+        }
+        setLoading(false);
+    }
+
+    async function rejectRequest(requestId: string) {
+        if (!confirm("Tem certeza que deseja RECUSAR e apagar esta solicitação?")) return;
+        const res = await fetch(`/api/super-admin/requests?id=${requestId}`, { method: "DELETE" });
+        if (res.ok) {
+            setMessage({ type: "success", text: "Solicitação recusada (excluída)." });
+            fetchRequests();
+        } else {
+            const err = await res.json();
+            setMessage({ type: "error", text: err.error || "Erro ao excluir." });
+        }
+    }
+
     async function toggleStoreStatus(storeId: string, currentStatus: string) {
         const newStatus = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
         await fetch("/api/super-admin/stores", {
@@ -297,7 +357,7 @@ export default function SuperAdminPage() {
     }
 
     const statusColor = (s: string) => ({
-        ACTIVE: "#22c55e", SUSPENDED: "#f59e0b", CANCELLED: "#ef4444"
+        ACTIVE: "#22c55e", SUSPENDED: "#f59e0b", CANCELLED: "#ef4444", PENDING: "#3b82f6"
     }[s] || "#6b7280");
 
     const inputStyle: React.CSSProperties = {
@@ -324,8 +384,9 @@ export default function SuperAdminPage() {
                 {/* Tabs */}
                 <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", borderBottom: "1px solid #334155" }}>
                     {[
-                        { id: "stores", label: "🏪 Lojas" },
-                        { id: "platform", label: "🌐 Página Inicial da Plataforma" },
+                        { id: "stores", label: "🏪 Lojas Ativas" },
+                        { id: "requests", label: `📩 Solicitações ${requests.length > 0 ? `(${requests.length})` : ""}` },
+                        { id: "platform", label: "🌐 Landing Page Global" },
                     ].map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
                             style={{
@@ -430,11 +491,24 @@ export default function SuperAdminPage() {
                                                 <td style={{ padding: "1rem", fontSize: "0.8rem", color: "#94a3b8" }}>
                                                     {store.subscription ? new Date(store.subscription.nextDueDate).toLocaleDateString("pt-BR") : "—"}
                                                 </td>
-                                                <td style={{ padding: "1rem" }}>
-                                                    <button onClick={() => toggleStoreStatus(store.id, store.status)}
-                                                        style={{ background: store.status === "ACTIVE" ? "#7f1d1d" : "#14532d", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
-                                                        {store.status === "ACTIVE" ? "Suspender" : "Ativar"}
-                                                    </button>
+                                                <td style={{ padding: "1rem", display: "flex", gap: "0.5rem" }}>
+                                                    {store.status === "PENDING" ? (
+                                                        <button onClick={() => toggleStoreStatus(store.id, store.status)}
+                                                            style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                                                            🟢 Aprovar PIX
+                                                        </button>
+                                                    ) : (
+                                                        <button onClick={() => toggleStoreStatus(store.id, store.status)}
+                                                            style={{ background: store.status === "ACTIVE" ? "#7f1d1d" : "#14532d", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                                                            {store.status === "ACTIVE" ? "Suspender" : "Ativar"}
+                                                        </button>
+                                                    )}
+                                                    {store.status === "PENDING" && (
+                                                        <button onClick={() => deleteStore(store.id, store.name)} title="Excluir Loja Definitivamente"
+                                                            style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 6, padding: "0.35rem 0.6rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                                                            Excluir
+                                                        </button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -450,6 +524,58 @@ export default function SuperAdminPage() {
                             </div>
                         )}
                     </>
+                )}
+
+                {/* ═══════════ ABA: SOLICITAÇÕES ═══════════ */}
+                {activeTab === "requests" && (
+                    <div style={{ background: "#1e293b", borderRadius: 12, border: "1px solid #334155", overflow: "hidden" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                                <tr style={{ background: "#0f172a" }}>
+                                    {["Data", "Nome da Loja", "Proprietário", "Contato", "Ações"].map(h => (
+                                        <th key={h} style={{ padding: "0.85rem 1rem", textAlign: "left", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {requests.map((req, i) => (
+                                    <tr key={req.id} style={{ borderTop: "1px solid #1e293b", background: i % 2 === 0 ? "#1e293b" : "#1a2535" }}>
+                                        <td style={{ padding: "1rem", fontSize: "0.85rem", color: "#64748b" }}>
+                                            {new Date(req.createdAt).toLocaleDateString("pt-BR")}
+                                        </td>
+                                        <td style={{ padding: "1rem" }}>
+                                            <div style={{ fontWeight: 600, color: "#e2e8f0" }}>{req.storeName}</div>
+                                            <div style={{ fontSize: "0.75rem", color: "#6366f1" }}>/c/{req.storeSlug}</div>
+                                        </td>
+                                        <td style={{ padding: "1rem" }}>
+                                            <div style={{ color: "#e2e8f0" }}>{req.ownerName}</div>
+                                            <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{req.ownerEmail}</div>
+                                        </td>
+                                        <td style={{ padding: "1rem", fontSize: "0.85rem", color: "#94a3b8" }}>
+                                            {req.phone || "—"}
+                                        </td>
+                                        <td style={{ padding: "1rem", display: "flex", gap: "0.5rem" }}>
+                                            <button onClick={() => approveRequest(req.id)}
+                                                style={{ background: "#22c55e", color: "white", border: "none", borderRadius: 6, padding: "0.45rem 0.9rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 700 }}>
+                                                Aprovar & Criar Loja
+                                            </button>
+                                            <button onClick={() => rejectRequest(req.id)}
+                                                style={{ background: "transparent", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 6, padding: "0.45rem 0.75rem", cursor: "pointer", fontSize: "0.75rem" }}>
+                                                Recusar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {requests.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} style={{ padding: "3rem", textAlign: "center", color: "#475569" }}>
+                                            Nenhuma solicitação de cadastro pendente no momento.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
 
                 {/* ═══════════ ABA: PLATAFORMA ═══════════ */}
@@ -567,6 +693,46 @@ export default function SuperAdminPage() {
                                     <input type="tel" placeholder="5511999999999"
                                         value={platformConfig.platformWhatsapp ?? ""}
                                         onChange={e => setPlatformConfig(c => ({ ...c, platformWhatsapp: e.target.value || null }))}
+                                        style={inputStyle} />
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Seção: Cobrança SaaS (PIX) */}
+                        <div style={{ marginBottom: "1.75rem" }}>
+                            <h3 style={{ fontSize: "0.75rem", fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem", paddingBottom: "0.5rem", borderBottom: "1px solid #334155" }}>
+                                Configurações de Faturamento (SaaS)
+                            </h3>
+                            <p style={{ fontSize: "0.78rem", color: "#475569", marginBottom: "1rem" }}>
+                                Estes dados serão exibidos aos lojistas que tiverem assinaturas vencidas ou quando registrarem uma nova conta.
+                            </p>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+                                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Chave PIX da Plataforma</span>
+                                    <input type="text" placeholder="CNPJ, Email, Telefone..."
+                                        value={platformConfig.platformPixKey ?? ""}
+                                        onChange={e => setPlatformConfig(c => ({ ...c, platformPixKey: e.target.value || null }))}
+                                        style={inputStyle} />
+                                </label>
+                                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Valor da Mensalidade Padrão (R$)</span>
+                                    <input type="number" step="0.01" min="0" placeholder="49.90"
+                                        value={platformConfig.platformPlanValue ?? 49.90}
+                                        onChange={e => setPlatformConfig(c => ({ ...c, platformPlanValue: parseFloat(e.target.value) || 0 }))}
+                                        style={inputStyle} />
+                                </label>
+                                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Titular da Chave PIX (Nome no Banco)</span>
+                                    <input type="text" placeholder="Nome exato associado à conta"
+                                        value={platformConfig.platformPixName ?? ""}
+                                        onChange={e => setPlatformConfig(c => ({ ...c, platformPixName: e.target.value || null }))}
+                                        style={inputStyle} />
+                                </label>
+                                <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Cidade do Titular (Máx. 15 caracteres)</span>
+                                    <input type="text" placeholder="Ex: SAO PAULO" maxLength={15}
+                                        value={platformConfig.platformPixCity ?? ""}
+                                        onChange={e => setPlatformConfig(c => ({ ...c, platformPixCity: e.target.value?.toUpperCase() || null }))}
                                         style={inputStyle} />
                                 </label>
                             </div>

@@ -149,13 +149,29 @@ export default async function PlatformLandingPage() {
                     <p className="text-lg md:text-xl text-gray-500 mb-10 max-w-xl mx-auto leading-relaxed">
                         {heroSubtitle}
                     </p>
-                    <Link
-                        href={ctaLink}
-                        className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all hover:opacity-90 hover:scale-105 hover:shadow-xl"
-                        style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
-                    >
-                        {ctaText} <ArrowRight className="w-5 h-5" />
-                    </Link>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                        <Link
+                            href={ctaLink}
+                            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all hover:opacity-90 hover:scale-105 hover:shadow-xl"
+                            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
+                        >
+                            {ctaText} <ArrowRight className="w-5 h-5" />
+                        </Link>
+                        <Link
+                            href="/registro"
+                            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all hover:opacity-90 hover:scale-105 hover:shadow-xl"
+                            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
+                        >
+                            Criar minha conta
+                        </Link>
+                        <Link
+                            href="/manual"
+                            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all hover:opacity-90 hover:scale-105 hover:shadow-xl"
+                            style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
+                        >
+                            Manual do Usuário
+                        </Link>
+                    </div>
                 </div>
             </section>
 

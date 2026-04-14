@@ -57,6 +57,10 @@ export async function POST(request: NextRequest) {
             showActiveStores,
             platformInstagram,
             platformWhatsapp,
+            platformPixKey,
+            platformPixName,
+            platformPixCity,
+            platformPlanValue,
         } = body;
 
         const config = await prisma.platformConfig.upsert({
@@ -77,6 +81,10 @@ export async function POST(request: NextRequest) {
                 ...(showActiveStores !== undefined && { showActiveStores }),
                 ...(platformInstagram !== undefined && { platformInstagram }),
                 ...(platformWhatsapp !== undefined && { platformWhatsapp }),
+                ...(platformPixKey !== undefined && { platformPixKey }),
+                ...(platformPixName !== undefined && { platformPixName }),
+                ...(platformPixCity !== undefined && { platformPixCity }),
+                ...(platformPlanValue !== undefined && { platformPlanValue }),
             },
             create: {
                 id: 1,
@@ -95,6 +103,10 @@ export async function POST(request: NextRequest) {
                 showActiveStores: showActiveStores ?? true,
                 platformInstagram: platformInstagram ?? null,
                 platformWhatsapp: platformWhatsapp ?? null,
+                platformPixKey: platformPixKey ?? null,
+                platformPixName: platformPixName ?? null,
+                platformPixCity: platformPixCity ?? null,
+                platformPlanValue: platformPlanValue ?? 49.90,
             },
         });
 
