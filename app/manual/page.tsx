@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { BookOpen, UserCircle, ShoppingCart, Tag, BarChart3, ChevronLeft, Search, PlusCircle, PackageOpen, CreditCard } from "lucide-react";
+import { BookOpen, UserCircle, ShoppingCart, Tag, BarChart3, ChevronLeft, Search, PlusCircle, PackageOpen, CreditCard, Scan } from "lucide-react";
 
 const TOPICS = [
     {
@@ -30,19 +30,42 @@ const TOPICS = [
     },
     {
         id: "pdv",
-        title: "2. PDV Avançado (Vendas de Balcão e Descontos)",
+        title: "2. PDV Avançado (Busca Inteligente, SKU e Descontos)",
         icon: <ShoppingCart size={24} strokeWidth={2.5} />,
         color: "green",
-        keywords: "caixa pdv vender balcao pedidos desconto gerente limite autorização porcentagem",
+        keywords: "caixa pdv vender balcao pedidos desconto gerente limite autorização porcentagem sku busca autocomplete leitor barcode codigo barra variante tamanho cor",
         content: (
             <>
                 <p>A tela de Ponto de Venda é o coração da sua loja física ou atendimento via Instagram.</p>
+
+                <h3 className="text-lg font-bold text-slate-800 mt-5 mb-2">🔍 Busca Inteligente com Autocomplete</h3>
+                <p className="mb-3">Ao digitar no campo de busca do PDV, um <strong>painel de sugestões</strong> aparece automaticamente mostrando resultados em tempo real. Existem dois tipos de resultado:</p>
+                <ul className="list-disc pl-5 space-y-2 font-medium mb-4">
+                    <li><strong className="text-blue-700">[SKU]</strong> — Aparece quando o que você digitou bate com o código SKU de uma variante específica (ex: tamanho P, cor Rosa). Clicar ou pressionar Enter <strong>adiciona a peça direto ao carrinho</strong>, sem abrir nenhum pop-up!</li>
+                    <li><strong className="text-purple-700">[→]</strong> — Aparece quando o que você digitou bate com o nome do produto. Clicar abre o pop-up de escolha de variante (tamanho/cor).</li>
+                </ul>
+
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg text-green-900 text-sm mb-4">
+                    ⚡ <strong>Dica de Velocidade:</strong> Use as teclas <strong>↑ ↓</strong> para navegar nas sugestões, <strong>Enter</strong> para selecionar e <strong>Esc</strong> para fechar o painel. O campo tem um <strong>X</strong> no canto direito para limpar a busca rapidamente.
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-800 mt-5 mb-2">📷 Leitor de Código de Barras (SKU)</h3>
+                <p className="mb-3">O campo de busca é <strong>100% compatível com leitores de código de barras</strong>. Ao bipar uma etiqueta, o sistema localiza automaticamente a variante pelo SKU e adiciona ao carrinho instantaneamente — o leitor envia o código e pressiona Enter sozinho!</p>
+                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg text-blue-900 text-sm">
+                    🏷️ O SKU de cada variante é definido na tela de <strong>Produtos</strong>, dentro de cada tamanho/cor. Configure-os antes de imprimir as etiquetas!
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-800 mt-5 mb-2">💬 Adicionando pelo Pop-up de Variante</h3>
                 <ol className="list-decimal pl-5 space-y-3 font-medium">
-                    <li><strong>Bipando Produtos:</strong> Ao buscar um produto e clicar nele, você não adiciona tudo de vez; o sistema pergunta **qual Tamanho e Cor (Variação)** para puxar automaticamente do estoque correto.</li>
-                    <li><strong>A Regra do Desconto:</strong> Quando a compra tiver montada, você pode dar descontos em <strong>R$ ou %</strong>. Mas atenção! Se você for um Vendedor, o lojista definiu sua faixa máxima de desconto.</li>
+                    <li><strong>Busque pelo nome</strong> do produto e clique no card dele.</li>
+                    <li>O sistema pergunta <strong>qual Tamanho e Cor (Variação)</strong> para puxar automaticamente do estoque correto.</li>
+                    <li>Clique na variante desejada e ela entra no carrinho.</li>
                 </ol>
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mt-4 text-red-900 text-sm">
-                    🛑 <strong>A Trava do Vendedor:</strong> Se você digitar um desconto de 20% mas o seu limite como usuário for 10%, a tela vai piscar um erro e o total ficará bloqueado. Surgirá um link escrito <strong>"Solicitar Autorização"</strong>. Se clicado, a **Lojista** pode se aproximar do balcão, digitar a senha mestra dela na tela, e liberar o desconto naquele momento exato para salvar a venda!
+
+                <h3 className="text-lg font-bold text-slate-800 mt-5 mb-2">🔒 A Regra do Desconto</h3>
+                <p className="mb-2">Quando a compra estiver montada, você pode dar descontos em <strong>R$ ou %</strong>. Mas atenção! Se você for um Vendedor, o lojista definiu sua faixa máxima de desconto.</p>
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mt-2 text-red-900 text-sm">
+                    🛑 <strong>A Trava do Vendedor:</strong> Se você digitar um desconto de 20% mas o seu limite for 10%, a tela bloqueará o total e aparecerá o link <strong>"Solicitar Autorização"</strong>. A lojista pode se aproximar, digitar a senha mestra e liberar o desconto naquele momento exato para salvar a venda!
                 </div>
             </>
         )

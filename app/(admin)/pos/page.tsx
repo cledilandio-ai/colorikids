@@ -73,6 +73,10 @@ export default function POSPage() {
     const [showPostAddAction, setShowPostAddAction] = useState(false);
     const [showMobileCart, setShowMobileCart] = useState(false);
 
+    // --- Autocomplete ---
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
     // --- Sucesso ---
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [lastOrderData, setLastOrderData] = useState<{ total: number; change: number; pixPayment?: Payment & { payload: string } } | null>(null);
@@ -293,7 +297,37 @@ export default function POSPage() {
     };
 
     // --- Carrinho e Desconto ---
-    const handleProductClick = (product: any) => setSelectedProduct(product);
+    const handleProductClick = (product: any) => {
+        // Se a busca atual bate exatamente com um SKU de variante deste produto, vai direto
+        const lowerSearch = search.trim().toLowerCase();
+        if (lowerSearch) {
+            const matchedVariant = product.variants?.find((v: any) => v.sku?.toLowerCase() === lowerSearch);
+            if (matchedVariant) {
+                addToCartDirect(product, matchedVariant);
+                return;
+            }
+        }
+        setSelectedProduct(product);
+    };
+
+    const addToCartDirect = (product: any, variant: any) => {
+        const currentQty = cart.find((p) => p.variantId === variant.id)?.qty || 0;
+        const availableStock = variant.stockQuantity || 0;
+
+        if (currentQty + 1 > availableStock) {
+            alert(`Estoque insuficiente! Disponível: ${availableStock} un.`);
+            return;
+        }
+
+        setCart((prev) => {
+            const existing = prev.find((p) => p.variantId === variant.id);
+            if (existing) return prev.map((p) => (p.variantId === variant.id ? { ...p, qty: p.qty + 1 } : p));
+            return [...prev, { id: product.id, name: product.name, price: product.basePrice, qty: 1, variantId: variant.id, variantName: `${variant.size}${variant.color ? ` - ${variant.color}` : ""}`, sku: variant.sku }];
+        });
+        setSearch(""); // Limpa a busca após adicionar via SKU
+
+        if (window.innerWidth < 1024) setShowPostAddAction(true);
+    };
 
     const addToCart = (variant: any) => {
         if (!selectedProduct) return;
@@ -308,7 +342,7 @@ export default function POSPage() {
         setCart((prev) => {
             const existing = prev.find((p) => p.variantId === variant.id);
             if (existing) return prev.map((p) => (p.variantId === variant.id ? { ...p, qty: p.qty + 1 } : p));
-            return [...prev, { id: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.basePrice, qty: 1, variantId: variant.id, variantName: `${variant.size} ${variant.color ? `- ${variant.color}` : ""}`, sku: variant.sku }];
+            return [...prev, { id: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.basePrice, qty: 1, variantId: variant.id, variantName: `${variant.size}${variant.color ? ` - ${variant.color}` : ""}`, sku: variant.sku }];
         });
         setSelectedProduct(null);
 
@@ -525,10 +559,102 @@ export default function POSPage() {
     const cashInDrawer = parseFloat(closingCashCounted) || 0;
     const retainedAmount = cashInDrawer - (parseFloat(amountToTransfer) || 0);
 
+    const skuExactMatch = (() => {
+        const lowerSearch = search.trim().toLowerCase();
+        if (!lowerSearch) return null;
+        for (const p of products) {
+            const v = p.variants?.find((v: any) => v.sku?.toLowerCase() === lowerSearch);
+            if (v) return { product: p, variant: v };
+        }
+        return null;
+    })();
+
+    // Sugestões inteligentes para o autocomplete
+    const searchSuggestions: { type: "product" | "variant"; product: any; variant?: any; label: string; sublabel: string }[] = (() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return [];
+        const results: any[] = [];
+        for (const p of products) {
+            const nameMatch = p.name.toLowerCase().includes(q);
+            const matchingVariants = p.variants?.filter((v: any) =>
+                v.sku?.toLowerCase().includes(q)
+            ) || [];
+
+            if (matchingVariants.length > 0) {
+                // Mostra cada variante matching individualmente
+                for (const v of matchingVariants) {
+                    const isExact = v.sku?.toLowerCase() === q;
+                    results.push({
+                        type: "variant",
+                        product: p,
+                        variant: v,
+                        label: p.name,
+                        sublabel: `SKU: ${v.sku} · ${v.size}${v.color ? ` - ${v.color}` : ""} · ${v.stockQuantity} un.`,
+                        isExact,
+                    });
+                }
+            } else if (nameMatch) {
+                // Produto cujo nome bate (sem variante específica)
+                results.push({
+                    type: "product",
+                    product: p,
+                    label: p.name,
+                    sublabel: `R$ ${p.basePrice.toFixed(2)} · ${p.variants?.length || 0} variante(s)`,
+                });
+            }
+        }
+        return results.slice(0, 12);
+    })();
+
     const filteredProducts = products.filter((p) => {
         const lowerSearch = search.toLowerCase();
         return p.name.toLowerCase().includes(lowerSearch) || p.variants.some((v: any) => v.sku?.toLowerCase().includes(lowerSearch));
     });
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!showSearchDropdown || searchSuggestions.length === 0) {
+            if (e.key === "Enter" && skuExactMatch) {
+                addToCartDirect(skuExactMatch.product, skuExactMatch.variant);
+            }
+            return;
+        }
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHighlightedIndex((i) => Math.min(i + 1, searchSuggestions.length - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlightedIndex((i) => Math.max(i - 1, 0));
+        } else if (e.key === "Escape") {
+            setShowSearchDropdown(false);
+            setHighlightedIndex(-1);
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            const idx = highlightedIndex >= 0 ? highlightedIndex : 0;
+            const s = searchSuggestions[idx];
+            if (!s) return;
+            if (s.type === "variant") {
+                addToCartDirect(s.product, s.variant);
+                setShowSearchDropdown(false);
+                setHighlightedIndex(-1);
+            } else {
+                handleProductClick(s.product);
+                setShowSearchDropdown(false);
+                setHighlightedIndex(-1);
+                setSearch("");
+            }
+        }
+    };
+
+    const handleSuggestionClick = (s: typeof searchSuggestions[number]) => {
+        if (s.type === "variant") {
+            addToCartDirect(s.product, s.variant);
+        } else {
+            handleProductClick(s.product);
+            setSearch("");
+        }
+        setShowSearchDropdown(false);
+        setHighlightedIndex(-1);
+    };
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] gap-4">
@@ -549,8 +675,83 @@ export default function POSPage() {
             <div className="flex flex-col gap-6 lg:flex-1 lg:flex-row lg:overflow-hidden">
                 <div className="flex flex-col gap-4 lg:flex-1 lg:overflow-hidden">
                     <div className="relative flex-shrink-0">
-                        <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                        <input className="w-full rounded-xl border border-gray-300 p-3 pl-10 text-lg focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Buscar produto..." value={search} onChange={(e) => setSearch(e.target.value)} autoFocus />
+                        <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 z-10" />
+                        <input
+                            className={`w-full rounded-xl border p-3 pl-10 pr-4 text-lg focus:outline-none focus:ring-2 transition-colors ${
+                                skuExactMatch
+                                    ? "border-green-400 bg-green-50 focus:ring-green-400"
+                                    : "border-gray-300 focus:ring-primary"
+                            }`}
+                            placeholder="Buscar por nome ou SKU..."
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setShowSearchDropdown(true);
+                                setHighlightedIndex(-1);
+                            }}
+                            onFocus={() => { if (search) setShowSearchDropdown(true); }}
+                            onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
+                            onKeyDown={handleSearchKeyDown}
+                            autoFocus
+                            autoComplete="off"
+                        />
+                        {search && (
+                            <button
+                                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                                onMouseDown={(e) => { e.preventDefault(); setSearch(""); setShowSearchDropdown(false); }}
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        )}
+
+                        {/* Autocomplete Dropdown */}
+                        {showSearchDropdown && searchSuggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+                                {searchSuggestions.map((s, idx) => (
+                                    <button
+                                        key={`${s.product.id}-${s.variant?.id ?? "prod"}`}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 last:border-0 ${
+                                            highlightedIndex === idx
+                                                ? "bg-blue-50 border-l-2 border-l-primary"
+                                                : "hover:bg-gray-50"
+                                        }`}
+                                        onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(s); }}
+                                        onMouseEnter={() => setHighlightedIndex(idx)}
+                                    >
+                                        {/* Ícone */}
+                                        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                            s.type === "variant"
+                                                ? (s as any).isExact
+                                                    ? "bg-green-100 text-green-700"
+                                                    : "bg-blue-100 text-blue-700"
+                                                : "bg-purple-100 text-purple-700"
+                                        }`}>
+                                            {s.type === "variant" ? "SKU" : "→"}
+                                        </div>
+
+                                        {/* Texto */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-gray-800 text-sm truncate">{s.label}</div>
+                                            <div className={`text-xs truncate ${
+                                                s.type === "variant" ? "text-blue-600 font-medium" : "text-gray-500"
+                                            }`}>{s.sublabel}</div>
+                                        </div>
+
+                                        {/* Badge ação */}
+                                        <div className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                            s.type === "variant"
+                                                ? "bg-green-100 text-green-700"
+                                                : "bg-purple-100 text-purple-700"
+                                        }`}>
+                                            {s.type === "variant" ? "Adicionar" : "Ver variantes"}
+                                        </div>
+                                    </button>
+                                ))}
+                                <div className="px-4 py-2 bg-gray-50 text-[10px] text-gray-400 flex items-center gap-2">
+                                    <span>↑↓ navegar</span><span>·</span><span>Enter selecionar</span><span>·</span><span>Esc fechar</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="w-full relative h-[500px] lg:h-auto lg:flex-1 lg:min-h-0">
                         <div className="flex flex-wrap content-start gap-4 h-full overflow-y-auto pb-24 lg:pb-4 pr-2">
