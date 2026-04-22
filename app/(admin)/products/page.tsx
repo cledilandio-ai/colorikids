@@ -17,7 +17,24 @@ export default async function ProductsPage({ searchParams }: { searchParams: { l
 
     const products = await prisma.product.findMany({
         where,
-        include: { variants: { where: { active: true } } },
+        select: {
+            id: true,
+            name: true,
+            basePrice: true,
+            costPrice: true,
+            category: true,
+            supplier: true,
+            createdAt: true,
+            variants: {
+                where: { active: true },
+                select: {
+                    id: true,
+                    size: true,
+                    sku: true,
+                    stockQuantity: true,
+                }
+            }
+        },
         orderBy: { createdAt: "desc" },
     });
 
