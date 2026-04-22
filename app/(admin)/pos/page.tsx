@@ -755,10 +755,12 @@ export default function POSPage() {
                     </div>
                     <div className="w-full relative h-[500px] lg:h-auto lg:flex-1 lg:min-h-0">
                         <div className="flex flex-wrap content-start gap-4 h-full overflow-y-auto pb-24 lg:pb-4 pr-2">
-                            {filteredProducts.map((product) => (
+                            {filteredProducts.map((product) => {
+                                const displayImage = product.imageUrl || product.variants?.find((v: any) => v.imageUrl)?.imageUrl;
+                                return (
                                 <button key={product.id} onClick={() => handleProductClick(product)} className="text-left group flex flex-col justify-between overflow-hidden rounded-xl border bg-white shadow-sm hover:border-primary hover:bg-blue-50 transition-all duration-200 w-[calc(50%-0.5rem)] sm:w-[12rem] md:w-[13rem] lg:w-[14rem] shrink-0">
                                     <div className="relative h-40 w-full shrink-0 overflow-hidden bg-gray-100">
-                                        {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
+                                        {displayImage ? <img src={displayImage} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
                                     </div>
                                     <div className="p-3 w-full flex flex-col flex-1 justify-between gap-1">
                                         <span className="block font-semibold text-gray-800 line-clamp-2 text-sm leading-tight">{product.name}</span>
@@ -768,7 +770,8 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                 </button>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
