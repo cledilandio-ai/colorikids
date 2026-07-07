@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PixQrCode } from "./PixQrCode";
+import { getServerAuthContext } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,31 @@ export default async function RegisterSuccessPage({ searchParams }: { searchPara
     const pixKey = config.platformPixKey?.trim() || null; // null = chave não configurada
     const pixName = config.platformPixName?.trim() || config.platformName?.trim() || "COLORIKIDS"; // Agora lendo o nome do titular real
     const pixCity = config.platformPixCity?.trim() || "SAO PAULO"; // Agora lendo a cidade real
-    const planValue = config.platformPlanValue || 49.90;
     const whatsapp = config.platformWhatsapp || "";
 
     // Buscar detalhes da solicitação se houver
     let requestedName = "Sua Nova Loja";
+    let planValue = config.platformPlanValue || 49.90;
+
     if (searchParams.requestId) {
         const req = await prisma.registrationRequest.findUnique({ where: { id: searchParams.requestId } });
         if (req) {
             requestedName = req.storeName;
+        }
+    } else {
+        // Tenta ler o contexto de autenticação do usuário logado se não for uma solicitação nova
+        const ctx = await getServerAuthContext();
+        if (ctx && ctx.storeId) {
+            const store = await prisma.store.findUnique({
+                where: { id: ctx.storeId },
+                include: { subscription: true }
+            });
+            if (store) {
+                requestedName = store.name;
+                if (store.subscription) {
+                    planValue = store.subscription.amount;
+                }
+            }
         }
     }
 

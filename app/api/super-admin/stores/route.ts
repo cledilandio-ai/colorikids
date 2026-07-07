@@ -18,6 +18,14 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: "desc" },
             include: {
                 subscription: true,
+                users: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        role: true,
+                    }
+                },
                 _count: {
                     select: {
                         users: true,
@@ -137,7 +145,7 @@ export async function PATCH(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { storeId, status, subscriptionStatus, notes } = body;
+        const { storeId, status, subscriptionStatus, notes, amount, nextDueDate } = body;
 
         if (!storeId) {
             return NextResponse.json({ error: "storeId é obrigatório" }, { status: 400 });
@@ -150,13 +158,13 @@ export async function PATCH(request: NextRequest) {
                 
                 // Se estamos aprovando (Ativando) a loja, renovamos o ciclo para +30 dias
                 if (status === "ACTIVE" && prevStore && prevStore.status !== "ACTIVE") {
-                    const nextDueDate = new Date();
-                    nextDueDate.setDate(nextDueDate.getDate() + 30); // 30 dias a partir de hoje
+                    const calculatedNextDueDate = new Date();
+                    calculatedNextDueDate.setDate(calculatedNextDueDate.getDate() + 30); // 30 dias a partir de hoje
                     
                     if (prevStore.subscription) {
                         await tx.subscription.update({
                             where: { storeId },
-                            data: { nextDueDate, status: "ACTIVE" }
+                            data: { nextDueDate: calculatedNextDueDate, status: "ACTIVE" }
                         });
                     } else {
                         // Caso a assinatura não exista (vem do Self Service)
@@ -166,21 +174,37 @@ export async function PATCH(request: NextRequest) {
                                 storeId,
                                 status: "ACTIVE",
                                 amount: config?.platformPlanValue ?? 49.90,
-                                billingDay: nextDueDate.getDate(),
-                                nextDueDate
+                                billingDay: calculatedNextDueDate.getDate(),
+                                nextDueDate: calculatedNextDueDate
                             }
                         });
                     }
                 }
             }
-            if (subscriptionStatus || notes) {
-                await tx.subscription.update({
-                    where: { storeId },
-                    data: {
-                        ...(subscriptionStatus && { status: subscriptionStatus }),
-                        ...(notes !== undefined && { notes }),
-                    }
-                });
+            if (subscriptionStatus !== undefined || notes !== undefined || amount !== undefined || nextDueDate !== undefined) {
+                const subExists = await tx.subscription.findUnique({ where: { storeId } });
+                if (subExists) {
+                    await tx.subscription.update({
+                        where: { storeId },
+                        data: {
+                            ...(subscriptionStatus !== undefined && { status: subscriptionStatus }),
+                            ...(notes !== undefined && { notes }),
+                            ...(amount !== undefined && { amount: parseFloat(amount) }),
+                            ...(nextDueDate !== undefined && { nextDueDate: new Date(nextDueDate) }),
+                        }
+                    });
+                } else {
+                    await tx.subscription.create({
+                        data: {
+                            storeId,
+                            status: subscriptionStatus || "ACTIVE",
+                            amount: amount !== undefined ? parseFloat(amount) : 49.90,
+                            billingDay: nextDueDate !== undefined ? new Date(nextDueDate).getDate() : 1,
+                            nextDueDate: nextDueDate !== undefined ? new Date(nextDueDate) : new Date(),
+                            notes: notes || null
+                        }
+                    });
+                }
             }
         });
 

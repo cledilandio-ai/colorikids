@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Globe, Upload, X, Loader2 } from "lucide-react";
+import { Globe, Upload, X, Loader2, LogOut } from "lucide-react";
 import { uploadImage } from "@/lib/uploadImage";
 
 interface Store {
@@ -10,7 +10,8 @@ interface Store {
     slug: string;
     status: string;
     createdAt: string;
-    subscription: { status: string; amount: number; nextDueDate: string; notes: string | null } | null;
+    subscription: { id: string; status: string; amount: number; nextDueDate: string; notes: string | null } | null;
+    users: Array<{ id: string; name: string; email: string; role: string }>;
     _count: { users: number; orders: number; products: number };
 }
 
@@ -186,6 +187,97 @@ export default function SuperAdminPage() {
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [activeTab, setActiveTab] = useState<"stores" | "requests" | "platform">("stores");
+
+    // Estados para Edição de Assinatura & Reset de Senha
+    const [editingStore, setEditingStore] = useState<Store | null>(null);
+    const [editForm, setEditForm] = useState({
+        amount: "0",
+        nextDueDate: "",
+        subscriptionStatus: "ACTIVE",
+        notes: "",
+    });
+    const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; name: string; email: string } | null>(null);
+    const [newPasswordVal, setNewPasswordVal] = useState("");
+    const [savingEdit, setSavingEdit] = useState(false);
+    const [resettingPassword, setResettingPassword] = useState(false);
+    const [editModalMessage, setEditModalMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+    async function handleSaveEdit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editingStore) return;
+        setSavingEdit(true);
+        setEditModalMessage(null);
+        
+        try {
+            const res = await fetch("/api/super-admin/stores", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    storeId: editingStore.id,
+                    amount: editForm.amount,
+                    nextDueDate: editForm.nextDueDate,
+                    subscriptionStatus: editForm.subscriptionStatus,
+                    notes: editForm.notes,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setEditModalMessage({ type: "success", text: "✅ Assinatura atualizada com sucesso!" });
+                fetchStores(); // recarrega lista de lojas
+                
+                // Atualiza o estado da loja que está sendo editada atualmente para refletir as mudanças
+                setEditingStore(prev => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        subscription: {
+                            id: prev.subscription?.id || "",
+                            status: editForm.subscriptionStatus,
+                            amount: parseFloat(editForm.amount) || 0,
+                            nextDueDate: new Date(editForm.nextDueDate).toISOString(),
+                            notes: editForm.notes || null,
+                        }
+                    };
+                });
+            } else {
+                setEditModalMessage({ type: "error", text: data.error || "Erro ao salvar alterações da assinatura." });
+            }
+        } catch (err: any) {
+            setEditModalMessage({ type: "error", text: err.message || "Erro de conexão." });
+        } finally {
+            setSavingEdit(false);
+        }
+    }
+
+    async function handleResetPassword(e: React.FormEvent) {
+        e.preventDefault();
+        if (!resetPasswordUser) return;
+        setResettingPassword(true);
+        setEditModalMessage(null);
+
+        try {
+            const res = await fetch("/api/super-admin/users/reset-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId: resetPasswordUser.id,
+                    newPassword: newPasswordVal,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setEditModalMessage({ type: "success", text: `✅ Senha de ${resetPasswordUser.name} redefinida com sucesso!` });
+                setResetPasswordUser(null);
+                setNewPasswordVal("");
+            } else {
+                setEditModalMessage({ type: "error", text: data.error || "Erro ao redefinir a senha." });
+            }
+        } catch (err: any) {
+            setEditModalMessage({ type: "error", text: err.message || "Erro de conexão." });
+        } finally {
+            setResettingPassword(false);
+        }
+    }
 
     // Platform config state
     const [platformConfig, setPlatformConfig] = useState<PlatformConfig>({
@@ -375,10 +467,21 @@ export default function SuperAdminPage() {
                         <h1 style={{ fontSize: "1.75rem", fontWeight: 700, color: "#f1f5f9", margin: 0 }}>⚡ Super Admin</h1>
                         <p style={{ color: "#94a3b8", margin: "0.25rem 0 0" }}>Gestão de Lojas — {stores.length} ativas</p>
                     </div>
-                    <a href="/" target="_blank"
-                        style={{ background: "#334155", color: "#94a3b8", border: "none", borderRadius: 8, padding: "0.6rem 1.2rem", cursor: "pointer", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}>
-                        <Globe size={14} /> Ver Página Inicial
-                    </a>
+                    <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                        <a href="/" target="_blank"
+                            style={{ background: "#334155", color: "#94a3b8", border: "none", borderRadius: 8, padding: "0.6rem 1.2rem", cursor: "pointer", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}>
+                            <Globe size={14} /> Ver Página Inicial
+                        </a>
+                        <button
+                            onClick={async () => {
+                                await fetch("/api/auth/logout", { method: "POST" });
+                                window.location.href = "/login";
+                            }}
+                            style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 8, padding: "0.6rem 1.2rem", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}
+                        >
+                            <LogOut size={14} /> Sair
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -491,7 +594,21 @@ export default function SuperAdminPage() {
                                                 <td style={{ padding: "1rem", fontSize: "0.8rem", color: "#94a3b8" }}>
                                                     {store.subscription ? new Date(store.subscription.nextDueDate).toLocaleDateString("pt-BR") : "—"}
                                                 </td>
-                                                <td style={{ padding: "1rem", display: "flex", gap: "0.5rem" }}>
+                                                <td style={{ padding: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                                    <button onClick={() => {
+                                                        setEditingStore(store);
+                                                        setEditForm({
+                                                            amount: store.subscription?.amount.toString() || "0",
+                                                            nextDueDate: store.subscription?.nextDueDate ? store.subscription.nextDueDate.substring(0, 10) : "",
+                                                            subscriptionStatus: store.subscription?.status || "ACTIVE",
+                                                            notes: store.subscription?.notes || "",
+                                                        });
+                                                        setEditModalMessage(null);
+                                                        setResetPasswordUser(null);
+                                                    }}
+                                                        style={{ background: "#6366f1", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                                                        ⚙️ Gerenciar
+                                                    </button>
                                                     {store.status === "PENDING" ? (
                                                         <button onClick={() => toggleStoreStatus(store.id, store.status)}
                                                             style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
@@ -521,6 +638,155 @@ export default function SuperAdminPage() {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        )}
+
+                        {/* Modal de Gerenciamento de Loja */}
+                        {editingStore && (
+                            <div style={{
+                                position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                                background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(4px)",
+                                display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+                                padding: "1.5rem"
+                            }}>
+                                <div style={{
+                                    background: "#1e293b", border: "1px solid #334155", borderRadius: 12,
+                                    width: "100%", maxWidth: 650, maxHeight: "90vh", overflowY: "auto",
+                                    padding: "2rem", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+                                    position: "relative"
+                                }}>
+                                    {/* Header do modal */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                                        <div>
+                                            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, color: "#f1f5f9" }}>
+                                                ⚙️ Gerenciar Loja: {editingStore.name}
+                                            </h2>
+                                            <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "0.25rem 0 0" }}>
+                                                /{editingStore.slug}
+                                            </p>
+                                        </div>
+                                        <button onClick={() => setEditingStore(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#64748b" }}>
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    {editModalMessage && (
+                                        <div style={{
+                                            background: editModalMessage.type === "success" ? "#14532d" : "#7f1d1d",
+                                            border: `1px solid ${editModalMessage.type === "success" ? "#22c55e" : "#ef4444"}`,
+                                            borderRadius: 8, padding: "0.85rem 1rem", marginBottom: "1.5rem", fontSize: "0.9rem",
+                                            color: "#e2e8f0"
+                                        }}>
+                                            {editModalMessage.text}
+                                        </div>
+                                    )}
+
+                                    {/* Seção 1: Detalhes de Assinatura */}
+                                    <form onSubmit={handleSaveEdit} style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
+                                        <h3 style={{ fontSize: "0.8rem", fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 0.5rem" }}>
+                                            Assinatura & Cobrança
+                                        </h3>
+                                        
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Mensalidade (R$)</span>
+                                                <input type="number" step="0.01" value={editForm.amount}
+                                                    onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                                                    style={inputStyle} />
+                                            </label>
+
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Data de Vencimento</span>
+                                                <input type="date" value={editForm.nextDueDate}
+                                                    onChange={e => setEditForm(f => ({ ...f, nextDueDate: e.target.value }))}
+                                                    style={inputStyle} />
+                                            </label>
+                                        </div>
+
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Status da Assinatura</span>
+                                                <select value={editForm.subscriptionStatus}
+                                                    onChange={e => setEditForm(f => ({ ...f, subscriptionStatus: e.target.value }))}
+                                                    style={{ ...inputStyle, cursor: "pointer", height: 38 }}>
+                                                    <option value="ACTIVE">ACTIVE (Ativa)</option>
+                                                    <option value="OVERDUE">OVERDUE (Atrasada)</option>
+                                                    <option value="CANCELLED">CANCELLED (Cancelada)</option>
+                                                </select>
+                                            </label>
+
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                                <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>Notas / Observações</span>
+                                                <input type="text" placeholder="Ex: Pago via Pix..." value={editForm.notes}
+                                                    onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                                                    style={inputStyle} />
+                                            </label>
+                                        </div>
+
+                                        <button type="submit" disabled={savingEdit}
+                                            style={{
+                                                background: "#6366f1", color: "white", border: "none", borderRadius: 8,
+                                                padding: "0.6rem 1.2rem", cursor: "pointer", fontWeight: 600,
+                                                alignSelf: "flex-end", fontSize: "0.85rem", opacity: savingEdit ? 0.7 : 1
+                                            }}>
+                                            {savingEdit ? "Salvando..." : "Salvar Dados da Assinatura"}
+                                        </button>
+                                    </form>
+
+                                    <hr style={{ border: "0", borderTop: "1px solid #334155", margin: "1.5rem 0" }} />
+
+                                    {/* Seção 2: Usuários & Redefinição de Senha */}
+                                    <div>
+                                        <h3 style={{ fontSize: "0.8rem", fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 1rem" }}>
+                                            Segurança & Usuários da Loja
+                                        </h3>
+
+                                        {resetPasswordUser ? (
+                                            <form onSubmit={handleResetPassword} style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, padding: "1rem", marginBottom: "1rem" }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                                                    <span style={{ fontSize: "0.85rem", color: "#cbd5e1", fontWeight: 600 }}>
+                                                        Resetar senha de {resetPasswordUser.name}
+                                                    </span>
+                                                    <button type="button" onClick={() => setResetPasswordUser(null)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#ef4444", fontSize: "0.75rem" }}>
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                                <div style={{ display: "flex", gap: "0.5rem" }}>
+                                                    <input required minLength={8} type="password" placeholder="Nova senha (mín. 8 caracteres)" value={newPasswordVal}
+                                                        onChange={e => setNewPasswordVal(e.target.value)}
+                                                        style={{ ...inputStyle, flex: 1 }} />
+                                                    <button type="submit" disabled={resettingPassword}
+                                                        style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 6, padding: "0.5rem 1rem", cursor: "pointer", fontWeight: 600, fontSize: "0.8rem", opacity: resettingPassword ? 0.7 : 1 }}>
+                                                        {resettingPassword ? "Salvando..." : "Confirmar"}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        ) : null}
+
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                                            {editingStore.users && editingStore.users.length > 0 ? (
+                                                editingStore.users.map(u => (
+                                                    <div key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem", background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 600, color: "#e2e8f0", fontSize: "0.9rem" }}>{u.name}</div>
+                                                            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{u.email} · <strong style={{ color: "#6366f1" }}>{u.role}</strong></div>
+                                                        </div>
+                                                        <button type="button" onClick={() => {
+                                                            setResetPasswordUser(u);
+                                                            setNewPasswordVal("");
+                                                            setEditModalMessage(null);
+                                                        }}
+                                                            style={{ background: "#334155", color: "#f87171", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer", fontSize: "0.75rem", fontWeight: 600 }}>
+                                                            🔑 Resetar Senha
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p style={{ color: "#64748b", fontSize: "0.85rem", textAlign: "center", margin: 0 }}>Nenhum usuário cadastrado nesta loja.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </>

@@ -1,4 +1,4 @@
-# Guia Rápido do Git - Colorikids 🚀
+gitgitstatus# Guia Rápido do Git - Colorikids 🚀
 
 Este é seu guia de bolso para gerenciar o projeto. Aqui estão os comandos que você mais vai usar.
 
