@@ -31,6 +31,7 @@ interface AggregatedProduct {
     costPrice: number; // Custo Unitário
     lastRestockAt: Date | null;
     lastSoldAt: Date | null;
+    createdAt: Date;
     status: 'ok' | 'low' | 'out' | 'obsolete';
     variantCount: number;
     hasBrokenGrid: boolean;

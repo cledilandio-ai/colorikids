@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, useRef } from "react";
 import { Globe, Upload, X, Loader2, LogOut } from "lucide-react";
 import { uploadImage } from "@/lib/uploadImage";
@@ -97,16 +98,18 @@ function ImageUploadField({
             {/* Preview + Remover */}
             {value && (
                 <div style={{ position: "relative", display: "inline-flex", marginBottom: 4 }}>
-                    <img
+                    <Image
                         src={value}
                         alt="preview"
+                        width={200}
+                        height={72}
                         style={{
-                            height: 72,
-                            maxWidth: 200,
                             objectFit: "contain",
                             borderRadius: 8,
                             border: "1px solid #334155",
                             background: "#1e293b",
+                            height: 72,
+                            maxWidth: 200,
                         }}
                     />
                     <button
@@ -290,14 +293,14 @@ export default function SuperAdminPage() {
         primaryColor: "#e91e8c",
         accentColor: "#9c27b0",
         platformName: "",
-        contactEmail: null,
-        showActiveStores: true,
-        platformInstagram: null,
-        platformWhatsapp: null,
-        platformPixKey: null,
-        platformPixName: null,
-        platformPixCity: null,
-        platformPlanValue: 49.90,
+        contactEmail: null,                footerText: null,
+                showActiveStores: true,
+                platformInstagram: null,
+                platformWhatsapp: null,
+                platformPixKey: null,
+                platformPixName: null,
+                platformPixCity: null,
+                platformPlanValue: 49.90,
     });
     const [savingPlatform, setSavingPlatform] = useState(false);
     const [platformMessage, setPlatformMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -345,6 +348,7 @@ export default function SuperAdminPage() {
                 accentColor: data.accentColor ?? "#9c27b0",
                 platformName: data.platformName ?? "",
                 contactEmail: data.contactEmail ?? null,
+                footerText: data.footerText ?? null,
                 showActiveStores: data.showActiveStores ?? true,
                 platformInstagram: data.platformInstagram ?? null,
                 platformWhatsapp: data.platformWhatsapp ?? null,
@@ -632,7 +636,7 @@ export default function SuperAdminPage() {
                                         {stores.length === 0 && (
                                             <tr>
                                                 <td colSpan={6} style={{ padding: "3rem", textAlign: "center", color: "#475569" }}>
-                                                    Nenhuma loja cadastrada. Clique em "+ Nova Loja" para começar.
+                                                    Nenhuma loja cadastrada. Clique em &quot;+ Nova Loja&quot; para começar.
                                                 </td>
                                             </tr>
                                         )}

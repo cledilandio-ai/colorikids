@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Save, Trash, Plus, Pencil } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
@@ -350,7 +351,7 @@ export default function SettingsPage() {
                                         {formData.featuredImageUrls.map((item, index) => (
                                             <div key={index} className="flex flex-col gap-2 rounded-lg border p-3 bg-gray-50">
                                                 <div className="relative h-40 w-full overflow-hidden rounded-md border group">
-                                                    <img src={item.url} alt={`Destaque ${index + 1}`} className="h-full w-full object-cover" />
+                                                    <Image src={item.url} alt={`Destaque ${index + 1}`} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" />
                                                     <button
                                                         type="button"
                                                         onClick={() => removeImage(index)}

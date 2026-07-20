@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import { logger } from "@/lib/logger";
 
 // GET user by ID
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+
         const { id } = params;
-        const user = await prisma.user.findUnique({ where: { id } });
+        // Garante que só busca usuários da mesma loja
+        const user = await prisma.user.findFirst({
+            where: { id, storeId: ctx.storeId }
+        });
         if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
         const { password: _, ...userWithoutPassword } = user;
@@ -18,10 +27,26 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 }
 
-// DELETE (Already existed implicitly by logic in settings page, but implementing properly here)
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+// DELETE — remove usuário da loja
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+
         const { id } = params;
+        // Verifica se o usuário pertence à loja e não é o próprio usuário logado
+        const user = await prisma.user.findFirst({
+            where: { id, storeId: ctx.storeId }
+        });
+        if (!user) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+        if (user.id === ctx.userId) {
+            return NextResponse.json({ error: "Não é possível excluir a si mesmo" }, { status: 403 });
+        }
+
         await prisma.user.delete({ where: { id } });
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -30,9 +55,23 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 }
 
 // PUT / PATCH to update user details
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+
         const { id } = params;
+
+        // Verifica se o usuário pertence à loja
+        const existingUser = await prisma.user.findFirst({
+            where: { id, storeId: ctx.storeId }
+        });
+        if (!existingUser) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
         const body = await request.json();
         const { name, email, role, maxDiscount, password } = body;
 
@@ -56,7 +95,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         const { password: _, ...userWithoutPassword } = updatedUser;
         return NextResponse.json(userWithoutPassword);
     } catch (error) {
-        console.error("Error updating user:", error);
+        logger.error({ err: error, route: "users/[id]/PUT", userId: params.id }, "Error updating user");
         return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
     }
 }

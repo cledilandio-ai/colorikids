@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 /** 
  * API para Gestão de Solicitações de Cadastro 
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
 
     } catch (error: any) {
-        console.error("ERRO AO APROVAR SOLICITACAO:", error);
+        logger.error({ err: error, route: "super-admin/requests/POST" }, "Error approving request");
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

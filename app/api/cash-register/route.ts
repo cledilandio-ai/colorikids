@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { cashRegisterSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
             currentTotal: totalCashInDrawer
         });
     } catch (error) {
-        console.error("Error fetching cash register:", error);
+        logger.error({ err: error, route: "cash-register/GET", storeId }, "Error fetching cash register");
         return NextResponse.json({ error: "Falha ao buscar dados do caixa: " + (error as Error).message }, { status: 500 });
     }
 }
@@ -81,16 +83,19 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { action, initialAmount, finalAmount, transferredAmount, withdrawFromTreasury } = body;
+        const parsed = cashRegisterSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
+        }
 
-        if (action === "OPEN") {
-            const amount = parseFloat(initialAmount);
-            if (isNaN(amount)) return NextResponse.json({ error: "Valor inicial inválido." }, { status: 400 });
+        if (parsed.data.action === "OPEN") {
+            const { initialAmount: amount, withdrawFromTreasury } = parsed.data;
 
             const existingOpen = await prisma.cashRegister.findFirst({ where: { storeId, status: "OPEN" } });
             if (existingOpen) return NextResponse.json({ error: "Já existe um caixa aberto." }, { status: 400 });
-
-            console.log(`OPEN Register: Amount=${amount}, Withdraw=${withdrawFromTreasury}`);
 
             const lastRegister = await prisma.cashRegister.findFirst({
                 where: { storeId, status: "CLOSED" },
@@ -126,20 +131,18 @@ export async function POST(request: NextRequest) {
             });
 
             return NextResponse.json(newRegister);
+        }
 
-        } else if (action === "CLOSE") {
+        if (parsed.data.action === "CLOSE") {
+            const { finalAmount: finalAmt, transferredAmount: transferred } = parsed.data;
+
             const openRegister = await prisma.cashRegister.findFirst({ where: { storeId, status: "OPEN" } });
             if (!openRegister) return NextResponse.json({ error: "Não há caixa aberto." }, { status: 400 });
 
-            const finalAmt = parseFloat(finalAmount);
-            const transferred = parseFloat(transferredAmount) || 0;
             const retained = finalAmt - transferred;
-
             if (retained < -0.01) {
                 return NextResponse.json({ error: "Valor a transferir não pode ser maior que o dinheiro em caixa." }, { status: 400 });
             }
-
-            console.log(`CLOSE Register: Final=${finalAmt}, Transferred=${transferred}, Retained=${retained}`);
 
             const closedRegister = await prisma.$transaction(async (tx) => {
                 const register = await tx.cashRegister.update({
@@ -205,7 +208,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
     } catch (error) {
-        console.error("Error managing cash register:", error);
+        logger.error({ err: error, route: "cash-register/POST", storeId }, "Error managing cash register");
         return NextResponse.json({ error: "Erro interno: " + (error as Error).message }, { status: 500 });
     }
 }

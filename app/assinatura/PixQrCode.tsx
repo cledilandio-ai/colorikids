@@ -125,7 +125,7 @@ export function PixQrCode({
             }
         }
         setLoading(false);
-    }, [pixKey, amount, name]);
+    }, [pixKey, amount, name, city]);
 
     if (loading) return <Loader2 className="h-12 w-12 mx-auto animate-spin text-slate-300" />;
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight, Instagram, PlayCircle } from "lucide-react";
 import { Highlight } from "@/context/SettingsContext";
 
@@ -51,19 +52,23 @@ export function HeroCarousel({ images }: HeroCarouselProps) {
                     <>
                         {/* Desktop: Background Blurred Layer (Hidden on Mobile) */}
                         <div className="absolute inset-0 overflow-hidden hidden md:block">
-                            <img
+                            <Image
                                 src={item.url}
                                 alt=""
-                                className="h-full w-full object-cover blur-xl scale-110 opacity-60"
+                                fill
+                                sizes="100vw"
+                                className="object-cover blur-xl scale-110 opacity-60"
                             />
                         </div>
 
                         {/* Foreground Main Image (Cover on Mobile, Contain on Desktop) */}
                         <div className="relative h-full w-full z-10 flex items-center justify-center">
-                            <img
+                            <Image
                                 src={item.url}
                                 alt={`Slide ${index + 1}`}
-                                className="h-full w-full object-cover md:object-contain"
+                                fill
+                                sizes="(max-width: 768px) 100vw, 80vw"
+                                className="object-cover md:object-contain"
                             />
                         </div>
 

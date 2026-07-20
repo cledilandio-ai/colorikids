@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { createOrderSchema } from "@/lib/validation";
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -26,12 +29,17 @@ export async function GET(request: NextRequest) {
         });
         return NextResponse.json(orders);
     } catch (error) {
-        console.error("Error fetching orders:", error);
+        logger.error({ err: error, route: "orders/GET" }, "Error fetching orders");
         return NextResponse.json({ error: "Error fetching orders" }, { status: 500 });
     }
 }
 
 export async function POST(request: NextRequest) {
+    // ── Rate limit: 30 req/min por IP ───────────────────────────────────
+    const ip = getClientIp(request);
+    const rateCheck = await checkRateLimit(`orders:post:${ip}`, RATE_LIMITS.ORDERS);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
+
     const ctx = await getAuthContext(request);
     if (!ctx?.storeId) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -40,10 +48,18 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { customerName, customerPhone, total, status, type, items, paymentMethod, cashRegisterId, payments, customerId } = body;
+        const parsed = createOrderSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
+        }
 
-        if (payments && Array.isArray(payments)) {
-            const paymentsTotal = payments.reduce((acc: number, p: any) => acc + p.amount, 0);
+        const { customerName, customerPhone, total, status, type, items, paymentMethod, cashRegisterId, payments, customerId } = parsed.data;
+
+        if (payments && payments.length > 0) {
+            const paymentsTotal = payments.reduce((acc, p) => acc + p.amount, 0);
             if (Math.abs(paymentsTotal - total) > 0.01) {
                 return NextResponse.json({ error: "Total de pagamentos não bate com o total do pedido." }, { status: 400 });
             }
@@ -67,7 +83,7 @@ export async function POST(request: NextRequest) {
             });
 
             // 2. Cria Pagamentos
-            if (payments && Array.isArray(payments)) {
+            if (payments && payments.length > 0) {
                 for (const p of payments) {
                     await tx.payment.create({
                         data: { amount: p.amount, method: p.method, orderId: newOrder.id }
@@ -139,7 +155,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(order);
     } catch (error: any) {
-        console.error("Error creating order:", error);
+        logger.error({ err: error, route: "orders/POST", userId }, "Error creating order");
         return NextResponse.json({ error: `Error creating order: ${error.message || "Unknown error"}` }, { status: 500 });
     }
 }

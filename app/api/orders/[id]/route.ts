@@ -1,14 +1,25 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
+import { updateOrderSchema } from "@/lib/validation";
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger } from "@/lib/logger";
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const id = params.id;
-        const order = await prisma.order.findUnique({
-            where: { id },
+        const order = await prisma.order.findFirst({
+            where: { id, storeId },
         });
 
         if (!order) {
@@ -17,7 +28,7 @@ export async function GET(
 
         return NextResponse.json(order);
     } catch (error) {
-        console.error("Error fetching order:", error);
+        logger.error({ err: error, route: "orders/[id]/GET", orderId: params.id }, "Error fetching order");
         return NextResponse.json(
             { error: "Error fetching order" },
             { status: 500 }
@@ -26,17 +37,36 @@ export async function GET(
 }
 
 export async function PUT(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        // ── Rate limit: 30 req/min por IP ────────────────────────────────
+        const ip = getClientIp(request);
+        const rateCheck = await checkRateLimit(`orders:put:${ip}`, RATE_LIMITS.ORDERS);
+        if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
+
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const id = params.id;
         const body = await request.json();
-        const { status, total, items, payments, cashRegisterId, customerId, type, customerName } = body;
+
+        const parsed = updateOrderSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
+        }
+        const { status, total, items, payments, cashRegisterId, customerId, type, customerName } = parsed.data;
 
         // Transaction to ensure data integrity
         const result = await prisma.$transaction(async (tx) => {
-            const currentOrder = await tx.order.findUnique({ where: { id } });
+            const currentOrder = await tx.order.findFirst({ where: { id, storeId } });
             if (!currentOrder) throw new Error("Order not found");
 
             // 1. Update Order Basic Fields
@@ -114,7 +144,8 @@ export async function PUT(
                                     variantId: item.variantId,
                                     change: -(item.qty || 1),
                                     reason: `Venda #${id.slice(0, 8)}`,
-                                    userId: "SYSTEM"
+                                    userId: "SYSTEM",
+                                    storeId,
                                 }
                             });
                         }
@@ -127,7 +158,7 @@ export async function PUT(
 
         return NextResponse.json(result);
     } catch (error: any) {
-        console.error("Error updating order:", error);
+        logger.error({ err: error, route: "orders/[id]/PUT", orderId: params.id }, "Error updating order");
         return NextResponse.json(
             { error: error.message || "Error updating order" },
             { status: 500 }
@@ -136,15 +167,21 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const id = params.id;
 
-        // Fetch order to check status
-        const order = await prisma.order.findUnique({
-            where: { id },
+        // Fetch order to check status — verifica tenant
+        const order = await prisma.order.findFirst({
+            where: { id, storeId },
             select: { status: true }
         });
 
@@ -161,7 +198,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Error deleting order:", error);
+        logger.error({ err: error, route: "orders/[id]/DELETE", orderId: params.id }, "Error deleting order");
         return NextResponse.json(
             { error: `Erro ao excluir pedido: ${error.message || "Erro desconhecido"}` },
             { status: 500 }

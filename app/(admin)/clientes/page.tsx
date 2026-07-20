@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, User, Phone, MapPin, Edit, Trash, X, Mail } from "lucide-react";
 
@@ -30,11 +30,7 @@ export default function CustomersPage() {
     });
     const [editingId, setEditingId] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchCustomers();
-    }, [search]);
-
-    const fetchCustomers = async () => {
+    const fetchCustomers = useCallback(async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams();
@@ -47,7 +43,11 @@ export default function CustomersPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [search]);
+
+    useEffect(() => {
+        fetchCustomers();
+    }, [fetchCustomers]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();

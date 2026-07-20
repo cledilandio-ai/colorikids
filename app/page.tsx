@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ShoppingBag, Instagram, MessageCircle } from "lucide-react";
 
@@ -62,7 +63,7 @@ export default async function PlatformLandingPage() {
             >
                 <div className="flex items-center gap-2">
                     {config?.logoUrl ? (
-                        <img src={config.logoUrl} alt={platformName} className="h-9 object-contain" />
+                        <div className="relative h-9 w-[160px]"><Image src={config.logoUrl} alt={platformName} fill sizes="160px" className="object-contain" /></div>
                     ) : (
                         <div className="flex items-center gap-2">
                             <div

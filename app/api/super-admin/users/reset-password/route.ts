@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
             message: `A senha de ${user.name} (${user.email}) foi alterada com sucesso! O lojista deverá criar uma senha pessoal no primeiro acesso.`,
         });
     } catch (error: any) {
-        console.error("ERRO AO RESETAR SENHA:", error);
+        logger.error({ err: error, route: "super-admin/users/reset-password" }, "Error resetting password");
         return NextResponse.json(
             { error: `Falha ao resetar senha do usuário: ${error.message}` },
             { status: 500 }

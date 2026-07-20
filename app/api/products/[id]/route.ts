@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
+import { updateProductSchema } from "@/lib/validation";
 import { createClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 export async function GET(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const id = params.id;
-        const product = await prisma.product.findUnique({
-            where: { id },
+        const product = await prisma.product.findFirst({
+            where: { id, storeId },
             include: {
                 variants: {
                     where: { active: true },
@@ -24,7 +34,7 @@ export async function GET(
 
         return NextResponse.json(product);
     } catch (error) {
-        console.error("Error fetching product:", error);
+        logger.error({ err: error, route: "products/[id]/GET", productId: params.id }, "Error fetching product");
         return NextResponse.json(
             { error: "Error fetching product" },
             { status: 500 }
@@ -33,19 +43,45 @@ export async function GET(
 }
 
 export async function PUT(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
-        const id = params.id;
-        const body = await request.json();
-        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, financialRecord, supplier } = body;
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
 
+        const id = params.id;
+
+        // Verifica se o produto pertence à loja antes de alterar
+        const existingProduct = await prisma.product.findUnique({
+            where: { id },
+            select: { storeId: true }
+        });
+        if (!existingProduct || existingProduct.storeId !== storeId) {
+            return NextResponse.json({ error: "Product not found" }, { status: 404 });
+        }
+
+        const body = await request.json();
+        const parsed = updateProductSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
+        }
+        const { name, description, basePrice, costPrice, imageUrl, variants, category, gender, supplier } = parsed.data;
+
+        if (!variants || variants.length === 0) {
+            return NextResponse.json({ error: "Pelo menos uma variante é obrigatória" }, { status: 400 });
+        }
 
         // 1. Separate incoming variants into Create vs Update
-        const variantsToUpdate = variants.filter((v: any) => v.id);
-        const variantsToCreate = variants.filter((v: any) => !v.id);
-        const incomingIds = variantsToUpdate.map((v: any) => v.id);
+        const variantsToUpdate = variants.filter((v) => v.id);
+        const variantsToCreate = variants.filter((v) => !v.id);
+        const incomingIds = variantsToUpdate.map((v) => v.id!);
 
         // 2. Identify variants to delete (In DB but not in incoming list)
         const currentDbVariants = await prisma.productVariant.findMany({
@@ -56,10 +92,6 @@ export async function PUT(
         const idsToDelete = dbIds.filter(dbId => !incomingIds.includes(dbId));
 
         // 2.5 Filter out variants that cannot be deleted due to FK constraints (StockMovement, InventoryLog)
-        // This prevents the "Foreign key constraint violated" error.
-        // Doing this check *outside* the transaction or before the delete command.
-        // Since we are inside a transaction block below, doing async checks here is fine.
-        // We will perform a check to see which of `idsToDelete` have related records.
         const variantsWithHistory = await prisma.productVariant.findMany({
             where: {
                 id: { in: idsToDelete },
@@ -71,7 +103,6 @@ export async function PUT(
             select: { id: true }
         });
         const idsWithHistory = variantsWithHistory.map(v => v.id);
-        const safeToDeleteIds = idsToDelete.filter(id => !idsWithHistory.includes(id));
 
         // Ensure "deleted" variants with history are effectively "kept" but maybe zeroed out? 
         // If we don't delete them, they remain linked to the product.
@@ -85,10 +116,10 @@ export async function PUT(
             await tx.product.update({
                 where: { id },
                 data: {
-                    name,
+                    name: name || undefined,
                     description,
-                    basePrice: parseFloat(basePrice) || 0,
-                    costPrice: parseFloat(costPrice) || 0,
+                    basePrice: basePrice !== undefined ? basePrice : undefined,
+                    costPrice: costPrice !== undefined ? costPrice : undefined,
                     imageUrl,
                     category,
                     gender,
@@ -157,7 +188,7 @@ export async function PUT(
                         minStock: parseInt(v.minStock) || 1,
                         lastRestockAt: parseInt(v.stockQuantity) > 0 ? new Date() : null,
                         imageUrl: v.imageUrl,
-                        sku: v.sku || `${name.substring(0, 3).toUpperCase()}-${(v.color || "VAR").substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`,
+                        sku: v.sku || `${(name || "PROD").substring(0, 3).toUpperCase()}-${(v.color || "VAR").substring(0, 3).toUpperCase()}-${v.size}-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`,
                     }))
                 });
             }
@@ -168,7 +199,7 @@ export async function PUT(
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Error updating product:", error);
+        logger.error({ err: error, route: "products/[id]/PUT", productId: params.id }, "Error updating product");
         return NextResponse.json(
             { error: `Error updating product: ${error.message}` },
             { status: 500 }
@@ -202,25 +233,31 @@ async function deleteImageFromSupabase(imageUrl: string | null) {
             .remove([path]);
 
         if (error) {
-            console.error("Error deleting image from Supabase:", error);
+            logger.error({ err: error, path }, "Error deleting image from Supabase");
         } else {
-            console.log("Image deleted successfully:", path);
+            logger.info({ path }, "Image deleted successfully");
         }
     } catch (error) {
-        console.error("Exception deleting image:", error);
+        logger.error({ err: error, path: "unknown" }, "Exception deleting image");
     }
 }
 
 export async function DELETE(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const id = params.id;
 
-        // 1. Fetch Key to delete images
-        const product = await prisma.product.findUnique({
-            where: { id },
+        // 1. Fetch Key to delete images — verifica tenant
+        const product = await prisma.product.findFirst({
+            where: { id, storeId },
             include: { variants: true }
         });
 
@@ -246,12 +283,12 @@ export async function DELETE(
 
             await Promise.allSettled(imagePromises);
         } else {
-            console.warn("Skipping image deletion: SUPABASE_SERVICE_ROLE_KEY is missing.");
+            logger.warn({ route: "products/[id]/DELETE" }, "Skipping image deletion: SUPABASE_SERVICE_ROLE_KEY missing");
         }
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Error archiving product:", error);
+        logger.error({ err: error, route: "products/[id]/DELETE", productId: params.id }, "Error archiving product");
         return NextResponse.json(
             { error: `Erro ao arquivar produto: ${error.message || "Erro desconhecido"}` },
             { status: 500 }

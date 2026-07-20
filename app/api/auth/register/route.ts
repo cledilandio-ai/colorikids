@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger, securityLog } from "@/lib/logger";
 
 export async function POST(request: Request) {
     try {
+        // ── Rate limit: 3 req/min por IP (spam prevention) ──────────────
+        const ip = getClientIp(request);
+        const rateCheck = await checkRateLimit(`auth:register:${ip}`, RATE_LIMITS.REGISTER);
+        if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
+
         const body = await request.json();
         const { storeName, storeSlug, ownerName, ownerEmail, ownerPassword, phone } = body;
 
@@ -46,10 +53,11 @@ export async function POST(request: Request) {
             }
         });
 
+        securityLog("REGISTER_SUCCESS", { email: normalizedEmail, slug: normalizedSlug, requestId: newRequest.id }, "info");
         return NextResponse.json({ success: true, requestId: newRequest.id });
 
     } catch (error: any) {
-        console.error("ERRO NO REGISTRO SAAS:", error);
+        logger.error({ err: error, route: "auth/register" }, "Registration error");
         return NextResponse.json({ 
             success: false, 
             error: `Ocorreu um erro ao criar sua loja: ${error.message || 'Erro desconhecido'}`,

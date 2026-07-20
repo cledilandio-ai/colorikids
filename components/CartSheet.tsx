@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ShoppingCart, X, Trash, Plus, Minus } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/context/CartContext";
 import { useSettings } from "@/context/SettingsContext";
@@ -139,15 +140,16 @@ export function CartSheet() {
                                 ) : (
                                     <div className="space-y-4">
                                         {cart.map((item) => (
-                                            <div key={item.variantId} className="flex gap-4 rounded-lg border p-3">
-                                                <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md bg-gray-100">
-                                                    {item.imageUrl ? (
-                                                        <img
-                                                            src={item.imageUrl}
-                                                            alt={item.name}
-                                                            className="h-full w-full object-cover"
-                                                        />
-                                                    ) : (
+                                            <div key={item.variantId} className="flex gap-4 rounded-lg border p-3"><div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-md bg-gray-100">
+    {item.imageUrl ? (
+        <Image
+            src={item.imageUrl}
+            alt={item.name}
+            fill
+            sizes="80px"
+            className="object-cover"
+        />
+    ) : (
                                                         <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
                                                             Sem Foto
                                                         </div>

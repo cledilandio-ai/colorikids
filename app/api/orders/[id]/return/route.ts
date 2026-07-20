@@ -1,12 +1,31 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export async function POST(
-    request: Request,
+    request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const ctx = await getAuthContext(request);
+        if (!ctx?.storeId) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+        const { storeId } = ctx;
+
         const orderId = params.id;
+
+        // Verifica se o pedido pertence à loja antes de processar devolução
+        const order = await prisma.order.findFirst({
+            where: { id: orderId, storeId },
+            select: { id: true }
+        });
+        if (!order) {
+            return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        }
+
         const body = await request.json();
         const { items, restock, refundAmount } = body;
         // items: { id: string (orderItemId), quantity: number, variantId: string }[]
@@ -59,6 +78,7 @@ export async function POST(
                             type: "OUT",
                             category: "REEMBOLSO",
                             date: new Date(),
+                            storeId,
                         }
                     });
                 }
@@ -71,7 +91,7 @@ export async function POST(
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Error processing return:", error);
+        logger.error({ err: error, route: "orders/[id]/return/POST", orderId: params.id }, "Error processing return");
         return NextResponse.json(
             { error: `Error processing return: ${error.message}` },
             { status: 500 }

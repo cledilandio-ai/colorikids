@@ -1,0 +1,1420 @@
+# Freebuff API — OpenAPI 3.1
+# =============================================================================
+# SaaS Multi-tenant para gestão de lojas (Next.js 14 + Prisma + Supabase)
+# Base URL: https://{dominio}
+# Autenticação: Cookie httpOnly (auth_token) ou Bearer Token (Authorization header)
+# =============================================================================
+
+openapi: "3.1.0"
+info:
+  title: Freebuff API
+  description: |
+    API de gestão multi-tenant para lojas.
+    Suporta autenticação por cookie JWT httpOnly ou header Authorization: Bearer.
+
+    ## Stack de Segurança por Requisição
+    1. **Rate Limit** — `checkRateLimit()` → 429 se excedido
+    2. **Autenticação** — `getAuthContext()` → 401 se inválido
+    3. **Tenant Isolation** — `storeId` no where → 404 se não pertencer
+    4. **Validação Zod** — `safeParse()` → 400 com fieldErrors
+    5. **Logging** — `logger.error()` / `securityLog()` estruturado
+  version: "1.0.0"
+  contact:
+    email: suporte@freebuff.com
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local
+  - url: https://{dominio}.vercel.app
+    description: Produção
+    variables:
+      dominio:
+        default: app
+        description: Domínio da aplicação
+
+# ─── Componentes Compartilhados ──────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token
+      description: |
+        Cookie httpOnly JWT. Obtido via POST /api/auth/login.
+        Válido por 7 dias.
+        Payload: { sub: userId, storeId, role, name }
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Alternativa ao cookie. Enviar no header:
+        Authorization: Bearer <token>
+        Mesmo JWT obtido no login.
+
+  schemas:
+    # ─── Erros Padronizados ─────────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Mensagem de erro legível
+        details:
+          type: object
+          description: Erros por campo (validação Zod)
+          additionalProperties:
+            type: array
+            items: { type: string }
+      example:
+        error: "Dados inválidos"
+        details:
+          basePrice: ["Preço deve ser positivo"]
+          variants: ["Pelo menos uma variante é obrigatória"]
+
+    RateLimitResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Muitas requisições. Tente novamente em 45 segundos."
+      headers:
+        Retry-After:
+          schema: { type: string }
+          description: Segundos até resetar o limite
+
+    429Response:
+      description: Rate limit excedido
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RateLimitResponse"
+
+    # ─── Treasury ───────────────────────────────────────────────────────────
+    TreasuryTransaction:
+      type: object
+      properties:
+        id: { type: string }
+        description: { type: string }
+        amount: { type: number, format: float }
+        type: { type: string, enum: [IN, OUT] }
+        category: { type: string }
+        date: { type: string, format: date-time }
+        userId: { type: string }
+        storeId: { type: string }
+
+    # ─── Order ───────────────────────────────────────────────────────────────
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        customerName: { type: string }
+        customerPhone: { type: string, nullable: true }
+        total: { type: number, format: float }
+        status: { type: string, enum: [PENDING, COMPLETED, CANCELLED] }
+        type: { type: string, enum: [WEB, POS] }
+        items: { type: string, description: "JSON string dos itens" }
+        paymentMethod: { type: string }
+        storeId: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    Payment:
+      type: object
+      properties:
+        id: { type: string }
+        amount: { type: number, format: float }
+        method: { type: string, enum: [PIX, CASH, CREDIT, DEBIT, DINHEIRO, CARTAO, CREDIARIO] }
+        orderId: { type: string }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string, nullable: true }
+        cpf: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        storeId: { type: string }
+
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        basePrice: { type: number, format: float }
+        costPrice: { type: number, format: float }
+        imageUrl: { type: string, nullable: true }
+        category: { type: string, nullable: true }
+        gender: { type: string, nullable: true }
+        supplier: { type: string, nullable: true }
+        active: { type: boolean }
+        storeId: { type: string }
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductVariant"
+
+    ProductVariant:
+      type: object
+      properties:
+        id: { type: string }
+        productId: { type: string }
+        size: { type: string }
+        color: { type: string }
+        stockQuantity: { type: integer }
+        minStock: { type: integer }
+        imageUrl: { type: string, nullable: true }
+        sku: { type: string, nullable: true }
+        active: { type: boolean }
+
+    CashRegister:
+      type: object
+      properties:
+        id: { type: string }
+        storeId: { type: string }
+        status: { type: string, enum: [OPEN, CLOSED] }
+        initialAmount: { type: number, format: float }
+        finalAmount: { type: number, format: float, nullable: true }
+        retainedAmount: { type: number, format: float }
+        openedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+
+    StoreConfig:
+      type: object
+      properties:
+        storeId: { type: string }
+        companyName: { type: string }
+        whatsapp: { type: string }
+        whatsappMessage: { type: string, nullable: true }
+        instagram: { type: string, nullable: true }
+        featuredImageUrls: { type: string, nullable: true }
+        pixKey: { type: string, nullable: true }
+        pixKeyType: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM], nullable: true }
+        cnpj: { type: string, nullable: true }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [SUPER_ADMIN, OWNER, SELLER] }
+        storeId: { type: string, nullable: true }
+        maxDiscount: { type: number }
+        permissions: { type: array, items: { type: string } }
+
+    AccountReceivable:
+      type: object
+      properties:
+        id: { type: string }
+        amount: { type: number, format: float }
+        dueDate: { type: string, format: date-time }
+        status: { type: string, enum: [PENDING, PAID, OVERDUE] }
+        customerId: { type: string }
+        orderId: { type: string }
+
+    RegistrationRequest:
+      type: object
+      properties:
+        id: { type: string }
+        storeName: { type: string }
+        storeSlug: { type: string }
+        ownerName: { type: string }
+        ownerEmail: { type: string, format: email }
+        phone: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PlatformConfig:
+      type: object
+      properties:
+        id: { type: integer }
+        heroTitle: { type: string }
+        heroSubtitle: { type: string }
+        ctaText: { type: string }
+        ctaLink: { type: string }
+        logoUrl: { type: string, nullable: true }
+        platformName: { type: string }
+        contactEmail: { type: string, nullable: true }
+        platformPlanValue: { type: number }
+
+    Store:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        status: { type: string, enum: [ACTIVE, PENDING, SUSPENDED] }
+        createdAt: { type: string, format: date-time }
+      additionalProperties: true
+
+# ─── Tags ────────────────────────────────────────────────────────────────────────
+
+tags:
+  - name: Auth
+    description: Autenticação e gerenciamento de sessão
+  - name: Produtos
+    description: CRUD de produtos e variantes
+  - name: Pedidos
+    description: Gestão de pedidos, pagamentos e devoluções
+  - name: Financeiro
+    description: Tesouraria e contas a receber
+  - name: Estoque
+    description: Movimentação e reabastecimento de estoque
+  - name: Clientes
+    description: Cadastro de clientes
+  - name: Caixa
+    description: Abertura, fechamento e histórico do PDV
+  - name: Configurações
+    description: Configurações da loja
+  - name: Usuários
+    description: Gerenciamento de usuários da loja
+  - name: Super Admin
+    description: Administração global da plataforma
+  - name: Plataforma
+    description: Configurações públicas da plataforma
+  - name: Storefront
+    description: Vitrine pública da loja
+  - name: Upload
+    description: Upload e compressão de imagens
+  - name: Monitoramento
+    description: Health check e diagnóstico
+
+# =============================================================================
+# ENDPOINTS
+# =============================================================================
+
+paths:
+  # ─── Auth ────────────────────────────────────────────────────────────────────
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login do usuário
+      description: |
+        Autentica usuário com email e senha.
+        Rate limit: 5 req/min por IP.
+        Retorna cookie httpOnly JWT (7 dias).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@loja.com"
+                password:
+                  type: string
+                  format: password
+                  example: "minhaSenha123"
+      responses:
+        "200":
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Loja suspensa
+        "429":
+          $ref: "#/components/schemas/429Response"
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Solicitar cadastro de loja
+      description: |
+        Envia solicitação de cadastro para aprovação do Super Admin.
+        Rate limit: 3 req/min por IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeName, storeSlug, ownerName, ownerEmail, ownerPassword]
+              properties:
+                storeName: { type: string, example: "Minha Loja" }
+                storeSlug: { type: string, example: "minha-loja" }
+                ownerName: { type: string, example: "João Silva" }
+                ownerEmail: { type: string, format: email }
+                ownerPassword: { type: string, format: password }
+                phone: { type: string, example: "5511999999999" }
+      responses:
+        "200":
+          description: Solicitação criada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  requestId: { type: string }
+        "400":
+          description: Slug ou email já existente
+        "429":
+          $ref: "#/components/schemas/429Response"
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Alterar senha
+      description: |
+        Altera a senha de um usuário (pode ser feita pelo OWNER ou SUPER_ADMIN).
+        Rate limit: 3 req/min por IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, newPassword]
+              properties:
+                userId: { type: string }
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+      responses:
+        "200":
+          description: Senha alterada com sucesso
+
+  /api/auth/verify-owner:
+    post:
+      tags: [Auth]
+      summary: Verificar senha do proprietário
+      description: |
+        Verifica se a senha fornecida corresponde a algum usuário OWNER.
+        Usado para ações sensíveis no PDV (descontos, etc.).
+        Rate limit: 5 req/min por IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        "200":
+          description: Senha válida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  maxDiscount: { type: number }
+        "401":
+          description: Senha inválida
+
+  # ─── Produtos ────────────────────────────────────────────────────────────────
+  /api/products:
+    get:
+      tags: [Produtos]
+      summary: Listar produtos
+      description: |
+        Lista todos os produtos ativos da loja.
+        Suporta busca por nome via query param `search`.
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Busca por nome do produto
+      responses:
+        "200":
+          description: Lista de produtos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      tags: [Produtos]
+      summary: Criar produto
+      description: |
+        Cria um novo produto com variantes.
+        Se costPrice for > 0 e houver estoque inicial, cria TreasuryTransaction de COMPRA_PRODUTO.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, basePrice, variants]
+              properties:
+                name: { type: string, maxLength: 300 }
+                description: { type: string, maxLength: 2000 }
+                basePrice: { type: number, example: 59.90 }
+                costPrice: { type: number, example: 30.00 }
+                imageUrl: { type: string, format: uri, nullable: true }
+                category: { type: string }
+                gender: { type: string }
+                supplier: { type: string }
+                variants:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    properties:
+                      size: { type: string }
+                      color: { type: string }
+                      stockQuantity: { type: integer }
+                      minStock: { type: integer }
+                      imageUrl: { type: string, format: uri, nullable: true }
+                      sku: { type: string }
+      responses:
+        "200":
+          description: Produto criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /api/products/{id}:
+    get:
+      tags: [Produtos]
+      summary: Obter produto
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dados do produto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    put:
+      tags: [Produtos]
+      summary: Atualizar produto
+      description: |
+        Atualiza dados do produto e gerencia variantes (cria/atualiza/desativa).
+        Remove imagens do Supabase quando variantes são desativadas.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                basePrice: { type: number }
+                costPrice: { type: number }
+                imageUrl: { type: string, nullable: true }
+                category: { type: string }
+                gender: { type: string }
+                supplier: { type: string }
+                variants:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: { type: string, description: "UUID se existente, omitir se novo" }
+                      size: { type: string }
+                      color: { type: string }
+                      stockQuantity: { type: integer }
+                      minStock: { type: integer }
+                      imageUrl: { type: string, nullable: true }
+                      sku: { type: string }
+      responses:
+        "200":
+          description: Produto atualizado
+    delete:
+      tags: [Produtos]
+      summary: Arquivar produto (soft delete)
+      description: |
+        Marca o produto como inactive.
+        Remove imagens das variantes do Supabase Storage.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Produto arquivado
+
+  # ─── Pedidos ──────────────────────────────────────────────────────────────────
+  /api/orders:
+    get:
+      tags: [Pedidos]
+      summary: Listar pedidos
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, COMPLETED, CANCELLED] }
+      responses:
+        "200":
+          description: Lista de pedidos com pagamentos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: "#/components/schemas/Order"
+                    - type: object
+                      properties:
+                        payments:
+                          type: array
+                          items:
+                            $ref: "#/components/schemas/Payment"
+    post:
+      tags: [Pedidos]
+      summary: Criar pedido
+      description: |
+        Cria pedido com pagamentos em transação atômica.
+        Rate limit: 30 req/min por IP.
+        Se COMPLETED: deduz estoque e cria TreasuryTransaction para PIX/CARTAO.
+        Se CREDIARIO: cria AccountReceivable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerName, total, items]
+              properties:
+                customerName: { type: string, maxLength: 200 }
+                customerPhone: { type: string }
+                total: { type: number, example: 199.90 }
+                status: { type: string, enum: [PENDING, COMPLETED, CANCELLED], default: "PENDING" }
+                type: { type: string, enum: [WEB, POS], default: "WEB" }
+                items: { type: string, description: "JSON string dos itens do pedido" }
+                paymentMethod: { type: string }
+                cashRegisterId: { type: string }
+                customerId: { type: string }
+                payments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      amount: { type: number, example: 100.00 }
+                      method: { type: string, enum: [PIX, CASH, CREDIT, DEBIT, DINHEIRO, CARTAO, CREDIARIO] }
+                      dueDate: { type: string, format: date, description: "Obrigatório para CREDIARIO" }
+      responses:
+        "200":
+          description: Pedido criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "429":
+          $ref: "#/components/schemas/429Response"
+
+  /api/orders/{id}:
+    get:
+      tags: [Pedidos]
+      summary: Obter pedido
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dados do pedido
+    put:
+      tags: [Pedidos]
+      summary: Atualizar pedido
+      description: |
+        Atualiza pedido, substitui pagamentos e deduz estoque se for convertido para COMPLETED.
+        Rate limit: 30 req/min por IP.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [PENDING, COMPLETED, CANCELLED] }
+                total: { type: number }
+                items: { type: string }
+                customerName: { type: string }
+                cashRegisterId: { type: string }
+                customerId: { type: string }
+                type: { type: string, enum: [WEB, POS] }
+                payments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      amount: { type: number }
+                      method: { type: string, enum: [PIX, CASH, CREDIT, DEBIT, DINHEIRO, CARTAO, CREDIARIO] }
+                      dueDate: { type: string, format: date }
+      responses:
+        "200":
+          description: Pedido atualizado
+    delete:
+      tags: [Pedidos]
+      summary: Arquivar pedido (soft delete)
+      description: Marca active=false para preservar histórico financeiro/de estoque.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pedido arquivado
+
+  /api/orders/{id}/return:
+    post:
+      tags: [Pedidos]
+      summary: Processar devolução
+      description: |
+        Processa devolução de itens com reestoquagem opcional e reembolso financeiro.
+        Se houver caixa aberto, registra saída no PDV.
+        Se não, cria TreasuryTransaction de REEMBOLSO.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      variantId: { type: string }
+                      quantity: { type: integer }
+                restock: { type: boolean, description: "Reabastecer estoque?" }
+                refundAmount: { type: number, description: "Valor a reembolsar" }
+      responses:
+        "200":
+          description: Devolução processada
+
+  # ─── Financeiro ──────────────────────────────────────────────────────────────
+  /api/finance/treasury:
+    get:
+      tags: [Financeiro]
+      summary: Listar transações do tesouro
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string, enum: [IN, OUT] }
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Lista de transações
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TreasuryTransaction"
+    post:
+      tags: [Financeiro]
+      summary: Criar transação no tesouro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description, amount, type, category]
+              properties:
+                description: { type: string, maxLength: 500, example: "Venda do dia" }
+                amount: { type: number, example: 150.50 }
+                type: { type: string, enum: [IN, OUT] }
+                category: { type: string, maxLength: 100, example: "VENDA" }
+      responses:
+        "200":
+          description: Transação criada
+
+  /api/finance/receivables:
+    get:
+      tags: [Financeiro]
+      summary: Listar contas a receber (crediário)
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, PAID, OVERDUE] }
+      responses:
+        "200":
+          description: Lista de recebíveis com cliente e pedido
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccountReceivable"
+
+  # ─── Estoque ──────────────────────────────────────────────────────────────────
+  /api/stock/restock:
+    post:
+      tags: [Estoque]
+      summary: Reabastecer estoque
+      description: |
+        Adiciona stock a uma variante. Calcula custo médio ponderado.
+        Se variantId="NEW", cria nova variante para o produto.
+        Cria StockMovement e TreasuryTransaction de RESTOCK.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [variantId, quantity, unitCost]
+              properties:
+                variantId: { type: string, description: "UUID da variante ou 'NEW' para criar nova" }
+                quantity: { type: integer, description: "Quantidade a adicionar (positiva)" }
+                unitCost: { type: number, description: "Custo unitário da compra" }
+                productId: { type: string, description: "Obrigatório se variantId='NEW'" }
+                size: { type: string, description: "Obrigatório se variantId='NEW'" }
+                color: { type: string }
+                imageUrl: { type: string, nullable: true }
+                minStock: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Estoque atualizado
+
+  # ─── Clientes ─────────────────────────────────────────────────────────────────
+  /api/customers:
+    get:
+      tags: [Clientes]
+      summary: Listar clientes
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Busca por nome, CPF ou telefone
+      responses:
+        "200":
+          description: Lista de clientes (max 20)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      tags: [Clientes]
+      summary: Criar cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 200 }
+                phone: { type: string, maxLength: 30 }
+                cpf: { type: string, maxLength: 14 }
+                email: { type: string, format: email, description: "String vazia é aceita como 'sem email'" }
+                address: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Cliente criado
+
+    put:
+      tags: [Clientes]
+      summary: Atualizar cliente
+      description: Verifica ownership do cliente antes de atualizar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name]
+              properties:
+                id: { type: string }
+                name: { type: string, maxLength: 200 }
+                phone: { type: string }
+                cpf: { type: string }
+                email: { type: string }
+                address: { type: string }
+      responses:
+        "200":
+          description: Cliente atualizado
+
+  # ─── Caixa (PDV) ─────────────────────────────────────────────────────────────
+  /api/cash-register:
+    get:
+      tags: [Caixa]
+      summary: Status do caixa
+      description: |
+        Retorna status do caixa (OPEN ou CLOSED).
+        Se aberto, inclui vendas por método e total em dinheiro.
+      responses:
+        "200":
+          description: Status do caixa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [OPEN, CLOSED] }
+                  id: { type: string }
+                  initialAmount: { type: number }
+                  totalSales: { type: number }
+                  salesByMethod:
+                    type: object
+                    additionalProperties: { type: number }
+                  currentTotal: { type: number }
+    post:
+      tags: [Caixa]
+      summary: Abrir/Fechar caixa
+      description: |
+        OPEN: Abre caixa com valor inicial (opcionalmente retira do tesouro).
+        CLOSE: Fecha caixa, calcula quebra/sobra, registra recolhimento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [OPEN, CLOSE]
+                initialAmount:
+                  type: number
+                  description: "Obrigatório para OPEN"
+                withdrawFromTreasury:
+                  type: boolean
+                  default: false
+                  description: "OPEN: retirar troco do tesouro?"
+                finalAmount:
+                  type: number
+                  description: "Obrigatório para CLOSE"
+                transferredAmount:
+                  type: number
+                  default: 0
+                  description: "CLOSE: valor recolhido para o tesouro"
+      responses:
+        "200":
+          description: Caixa atualizado
+
+  /api/cash-register/history:
+    get:
+      tags: [Caixa]
+      summary: Histórico de caixas
+      description: Retorna todos os fechamentos de caixa da loja com métricas.
+      responses:
+        "200":
+          description: Histórico completo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    openedAt: { type: string, format: date-time }
+                    closedAt: { type: string, format: date-time, nullable: true }
+                    status: { type: string, enum: [OPEN, CLOSED] }
+                    initialAmount: { type: number }
+                    finalAmount: { type: number, nullable: true }
+                    totalSales: { type: number }
+                    salesByMethod:
+                      type: object
+                      additionalProperties: { type: number }
+                    expectedTotal: { type: number }
+                    difference: { type: number }
+
+  # ─── Configurações ───────────────────────────────────────────────────────────
+  /api/settings:
+    get:
+      tags: [Configurações]
+      summary: Obter configurações da loja
+      description: |
+        Retorna as configurações da loja. Cria configuração padrão se não existir.
+      responses:
+        "200":
+          description: Configurações da loja
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StoreConfig"
+    post:
+      tags: [Configurações]
+      summary: Atualizar configurações
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                companyName: { type: string }
+                whatsapp: { type: string }
+                whatsappMessage: { type: string }
+                instagram: { type: string }
+                cnpj: { type: string }
+                pixKey: { type: string }
+                pixKeyType: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
+                featuredImageUrls:
+                  type: array
+                  items: { type: string, format: uri }
+      responses:
+        "200":
+          description: Configurações atualizadas
+
+  # ─── Upload ──────────────────────────────────────────────────────────────────
+  /api/upload:
+    post:
+      tags: [Upload]
+      summary: Upload de imagem
+      description: |
+        Faz upload e compressão de imagem via Sharp.
+        Rate limit: 10 req/min por IP.
+        Converte para WebP com qualidade ajustável.
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string, enum: [product, banner] }
+          description: "product=800px/75%, banner=1080px/80%"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Arquivo de imagem (JPEG, PNG, WebP, HEIC, etc.)"
+      responses:
+        "200":
+          description: URL da imagem comprimida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  url: { type: string, format: uri }
+        "429":
+          $ref: "#/components/schemas/429Response"
+
+  # ─── Usuários ────────────────────────────────────────────────────────────────
+  /api/users:
+    get:
+      tags: [Usuários]
+      summary: Listar usuários da loja
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      tags: [Usuários]
+      summary: Criar funcionário
+      description: |
+        Cria novo usuário vinculado à loja do OWNER logado.
+        Verifica unicidade de email global.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string }
+                role: { type: string, enum: [SELLER], default: "SELLER" }
+                maxDiscount: { type: number, default: 0 }
+                permissions: { type: array, items: { type: string } }
+      responses:
+        "201":
+          description: Funcionário criado
+
+  /api/users/{id}:
+    get:
+      tags: [Usuários]
+      summary: Obter usuário
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Dados do usuário (sem senha)
+    put:
+      tags: [Usuários]
+      summary: Atualizar usuário
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string }
+                role: { type: string }
+                maxDiscount: { type: number }
+                password: { type: string }
+      responses:
+        "200":
+          description: Usuário atualizado
+    delete:
+      tags: [Usuários]
+      summary: Excluir usuário
+      description: |
+        Impede auto-exclusão. Verifica tenant antes de excluir.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Usuário excluído
+
+  # ─── Super Admin ─────────────────────────────────────────────────────────────
+  /api/super-admin/stores:
+    get:
+      tags: [Super Admin]
+      summary: Listar lojas
+      description: Retorna todas as lojas com métricas (pedidos, produtos, usuários).
+      responses:
+        "200":
+          description: Lista de lojas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Store"
+    post:
+      tags: [Super Admin]
+      summary: Criar loja
+      description: |
+        Cria loja + assinatura + usuário OWNER + StoreConfig em transação atômica.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeName, storeSlug, ownerName, ownerEmail, ownerPassword]
+              properties:
+                storeName: { type: string }
+                storeSlug: { type: string }
+                ownerName: { type: string }
+                ownerEmail: { type: string, format: email }
+                ownerPassword: { type: string, format: password }
+                subscriptionAmount: { type: number }
+                billingDay: { type: integer }
+      responses:
+        "200":
+          description: Loja criada
+    patch:
+      tags: [Super Admin]
+      summary: Atualizar loja
+      description: Atualiza status da loja e/ou dados da assinatura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [storeId]
+              properties:
+                storeId: { type: string }
+                status: { type: string, enum: [ACTIVE, PENDING, SUSPENDED] }
+                subscriptionStatus: { type: string }
+                amount: { type: number }
+                nextDueDate: { type: string, format: date }
+                notes: { type: string }
+      responses:
+        "200":
+          description: Loja atualizada
+    delete:
+      tags: [Super Admin]
+      summary: Excluir loja PENDING
+      description: |
+        Exclui permanentemente lojas com status PENDING (nunca aprovadas).
+        Remove todos os dados em cascata.
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Loja excluída
+        "403":
+          description: Apenas lojas PENDING podem ser excluídas
+
+  /api/super-admin/requests:
+    get:
+      tags: [Super Admin]
+      summary: Listar solicitações de cadastro
+      responses:
+        "200":
+          description: Lista de solicitações
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegistrationRequest"
+    post:
+      tags: [Super Admin]
+      summary: Aprovar solicitação
+      description: |
+        Aprova solicitação de cadastro: cria loja, usuário OWNER,
+        StoreConfig, assinatura e remove a solicitação (transação atômica).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requestId, action]
+              properties:
+                requestId: { type: string }
+                action: { type: string, enum: [APPROVE] }
+      responses:
+        "200":
+          description: Solicitação aprovada, loja criada
+    delete:
+      tags: [Super Admin]
+      summary: Recusar solicitação
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Solicitação removida
+
+  /api/super-admin/platform-config:
+    get:
+      tags: [Super Admin]
+      summary: Obter configurações da plataforma
+      description: |
+        Versão autenticada das configurações (requer SUPER_ADMIN).
+        Cria registro padrão se não existir.
+      responses:
+        "200":
+          description: Configurações da plataforma
+    post:
+      tags: [Super Admin]
+      summary: Atualizar configurações da plataforma
+      description: Atualiza landing page, branding, planos e dados PIX.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                heroTitle: { type: string }
+                heroSubtitle: { type: string }
+                ctaText: { type: string }
+                ctaLink: { type: string }
+                logoUrl: { type: string }
+                platformName: { type: string }
+                contactEmail: { type: string }
+                footerText: { type: string }
+                platformPlanValue: { type: number }
+                platformPixKey: { type: string }
+                platformPixName: { type: string }
+                platformPixCity: { type: string }
+                primaryColor: { type: string }
+                accentColor: { type: string }
+      responses:
+        "200":
+          description: Configurações salvas
+
+  /api/super-admin/users/reset-password:
+    post:
+      tags: [Super Admin]
+      summary: Resetar senha de usuário
+      description: |
+        Super Admin redefine a senha de um usuário lojista.
+        Não permite resetar senha de outro SUPER_ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, newPassword]
+              properties:
+                userId: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "200":
+          description: Senha alterada
+
+  # ─── Plataforma (Pública) ────────────────────────────────────────────────────
+  /api/platform-config:
+    get:
+      tags: [Plataforma]
+      summary: Configurações públicas da plataforma
+      description: |
+        Rota pública — retorna dados de branding da landing page.
+        Cria registro padrão se não existir (id=1).
+      security: []
+      responses:
+        "200":
+          description: Configurações da landing page
+
+  # ─── Storefront (Público) ────────────────────────────────────────────────────
+  /api/storefront/{slug}/settings:
+    get:
+      tags: [Storefront]
+      summary: Configurações públicas da loja
+      description: |
+        Rota pública — retorna dados da vitrine da loja pelo slug.
+        Inclui nome, WhatsApp, Instagram, imagens em destaque e chave PIX.
+      security: []
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+          description: Slug da loja (ex: "minha-loja")
+      responses:
+        "200":
+          description: Dados públicos da loja
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companyName: { type: string }
+                  whatsapp: { type: string }
+                  whatsappMessage: { type: string }
+                  instagram: { type: string, nullable: true }
+                  featuredImageUrls: { type: string }
+                  pixKey: { type: string, nullable: true }
+                  pixKeyType: { type: string }
+                  cnpj: { type: string, nullable: true }
+                  slug: { type: string }
+        "404":
+          description: Loja não encontrada
+
+  # ─── Health Check ────────────────────────────────────────────────────────────
+  /api/health:
+    get:
+      tags: [Monitoramento]
+      summary: Health check do sistema
+      description: |
+        Verifica conectividade de todos os serviços essenciais:
+        - Variáveis de ambiente
+        - Banco de dados (Prisma)
+        - JWT signing (jose)
+        - Supabase Storage
+        - Redis (Upstash — pula se sem credenciais)
+      security: []
+      responses:
+        "200":
+          description: Todos os serviços saudáveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [healthy, unhealthy] }
+                  timestamp: { type: string, format: date-time }
+                  uptime: { type: integer }
+                  environment: { type: string }
+                  duration: { type: string }
+                  checks:
+                    type: object
+                    properties:
+                      env:
+                        type: object
+                        properties:
+                          status: { type: string, enum: [ok, degraded] }
+                      database:
+                        type: object
+                        properties:
+                          status: { type: string, enum: [ok, error] }
+                          duration: { type: string }
+                      jwt:
+                        type: object
+                        properties:
+                          status: { type: string, enum: [ok, error] }
+                      supabase:
+                        type: object
+                        properties:
+                          status: { type: string, enum: [ok, error, skipped] }
+                      redis:
+                        type: object
+                        properties:
+                          status: { type: string, enum: [ok, error, skipped] }
+        "503":
+          description: Um ou mais serviços com falha
+
+  # ─── Debug ────────────────────────────────────────────────────────────────────
+  /api/debug-connection:
+    get:
+      tags: [Monitoramento]
+      summary: Diagnóstico de conexão com banco
+      description: |
+        Rota de diagnóstico para testar conectividade com o banco de dados.
+        Exibe informações mascaradas da conexão.
+      security: []
+      responses:
+        "200":
+          description: Conexão OK
+        "500":
+          description: Falha na conexão

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { treasurySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(transactions);
     } catch (error) {
-        console.error("Error fetching treasury:", error);
+        logger.error({ err: error, route: "finance/treasury/GET", storeId }, "Error fetching treasury");
         return NextResponse.json({ error: "Error fetching treasury" }, { status: 500 });
     }
 }
@@ -47,16 +49,20 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { description, amount, type, category } = body;
-
-        if (!description || !amount || !type || !category) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        const parsed = treasurySchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
         }
+
+        const { description, amount, type, category } = parsed.data;
 
         const transaction = await prisma.treasuryTransaction.create({
             data: {
                 description,
-                amount: parseFloat(amount),
+                amount,
                 type,
                 category,
                 date: new Date(),
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(transaction);
     } catch (error) {
-        console.error("Error creating transaction:", error);
+        logger.error({ err: error, route: "finance/treasury/POST", storeId }, "Error creating treasury transaction");
         return NextResponse.json({ error: "Error creating transaction" }, { status: 500 });
     }
 }

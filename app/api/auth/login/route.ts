@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
 import { signToken, COOKIE_NAME } from "@/lib/auth";
-
-const prisma = new PrismaClient();
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger, securityLog } from "@/lib/logger";
 
 export async function POST(request: Request) {
   try {
+    // ── Rate limit: 5 req/min por IP ────────────────────────────────────
+    const ip = getClientIp(request);
+    const rateCheck = await checkRateLimit(`auth:login:${ip}`, RATE_LIMITS.LOGIN);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
+
     const { email, password } = await request.json();
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -17,12 +22,14 @@ export async function POST(request: Request) {
     });
 
     if (!user) {
+      securityLog("LOGIN_FAILED", { email: normalizedEmail, ip, reason: "user_not_found" }, "info");
       return NextResponse.json({ success: false, error: "Credenciais inválidas." }, { status: 401 });
     }
 
     // 2. Valida senha
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
+      securityLog("LOGIN_FAILED", { email: normalizedEmail, ip, reason: "wrong_password" }, "info");
       return NextResponse.json({ success: false, error: "Credenciais inválidas." }, { status: 401 });
     }
 
@@ -70,10 +77,11 @@ export async function POST(request: Request) {
     // 6. Remove cookies legados do sistema antigo
     response.cookies.delete("user_role");
 
+    securityLog("LOGIN_SUCCESS", { email: normalizedEmail, ip, role: user.role, storeId: user.storeId }, "info");
     return response;
 
-  } catch (error) {
-    console.error("Login error:", error);
+    } catch (error) {
+    logger.error({ err: error, route: "auth/login" }, "Login error");
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
 }

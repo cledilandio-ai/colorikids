@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
         }
         return NextResponse.json(config);
     } catch (error) {
-        console.error("[super-admin/platform-config GET]", error);
+        logger.error({ err: error, route: "super-admin/platform-config/GET" }, "Error fetching platform config");
         return NextResponse.json({ error: "Erro ao buscar configurações" }, { status: 500 });
     }
 }
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, config });
     } catch (error) {
-        console.error("[super-admin/platform-config POST]", error);
+        logger.error({ err: error, route: "super-admin/platform-config/POST" }, "Error saving platform config");
         return NextResponse.json({ error: "Erro ao salvar configurações" }, { status: 500 });
     }
 }

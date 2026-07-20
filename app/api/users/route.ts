@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
     const ctx = await getAuthContext(request);
     if (!ctx?.storeId) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
+    const { storeId } = ctx;
 
     try {
         const users = await prisma.user.findMany({
-            where: { storeId: ctx.storeId },
+            where: { storeId },
             select: {
                 id: true,
                 name: true,
@@ -27,17 +30,18 @@ export async function GET(request: Request) {
 
         return NextResponse.json(users);
     } catch (error) {
-        console.error("Error fetching users:", error);
+        logger.error({ err: error, route: "users/GET", storeId }, "Error fetching users");
         return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     // 1. Garante que quem está criando tem contexto de loja (OWNER)
     const ctx = await getAuthContext(request);
     if (!ctx?.storeId) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
+    const { storeId } = ctx;
 
     try {
         const { name, email, password, role, maxDiscount, permissions } = await request.json();
@@ -63,14 +67,14 @@ export async function POST(request: Request) {
                 maxDiscount: maxDiscount ?? 0,
                 permissions: permissions ?? [],
                 // ⬇️ CHAVE DO MULTI-TENANT: vincula ao storeId da sessão logada
-                storeId: ctx.storeId,
+                storeId,
             },
             select: { id: true, name: true, email: true, role: true },
         });
 
         return NextResponse.json({ success: true, user }, { status: 201 });
     } catch (error) {
-        console.error("Error creating user:", error);
+        logger.error({ err: error, route: "users/POST", storeId }, "Error creating user");
         return NextResponse.json({ error: "Erro ao cadastrar funcionário." }, { status: 500 });
     }
 }

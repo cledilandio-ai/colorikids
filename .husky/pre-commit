@@ -1,0 +1,3 @@
+npx tsc --noEmit --pretty
+npx next lint
+npx vitest run

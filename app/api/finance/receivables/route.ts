@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(receivables);
     } catch (error) {
-        console.error("Error fetching receivables:", error);
+        logger.error({ err: error, route: "finance/receivables/GET", storeId }, "Error fetching receivables");
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function GET(
             slug: store.slug,
         });
     } catch (error) {
-        console.error("[storefront/settings]", error);
+        logger.error({ err: error, route: "storefront/[slug]/settings", slug: params.slug }, "Error fetching storefront settings");
         return NextResponse.json({ error: "Erro interno" }, { status: 500 });
     }
 }

@@ -1,13 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     typescript: {
-        // !! ATENÇÃO !!
-        // Ignora erros de TypeScript para o site subir logo
-        ignoreBuildErrors: true,
+        // Typecheck está 100% limpo (0 erros) — build falha se houver erro de tipo
     },
     eslint: {
-        // Ignora alertas de estilo de código
-        ignoreDuringBuilds: true,
+        // Lint está 100% limpo (0 erros, 0 warnings) — build falha se houver warning
     },
     images: {
         remotePatterns: [

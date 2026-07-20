@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET() {
 
         return NextResponse.json(config);
     } catch (error) {
-        console.error("[platform-config GET]", error);
+        logger.error({ err: error, route: "platform-config/GET" }, "Error fetching platform config");
         return NextResponse.json({ error: "Erro ao buscar configurações da plataforma" }, { status: 500 });
     }
 }

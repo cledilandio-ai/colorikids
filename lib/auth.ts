@@ -22,9 +22,15 @@ export interface TokenPayload {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "colorikids-saas-secret-change-in-production-32chars"
-);
+const JWT_SECRET_ENV = process.env.JWT_SECRET;
+if (!JWT_SECRET_ENV) {
+  throw new Error(
+    "JWT_SECRET environment variable is required. " +
+    "Set it in .env.local or Vercel Environment Variables. " +
+    "Generate a secure key with: openssl rand -base64 32"
+  );
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_ENV);
 
 const COOKIE_NAME = "auth_token";
 const TOKEN_EXPIRY = "7d";

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,15 +13,8 @@ export async function GET() {
         ? url.replace(/:([^@]+)@/, ':****@')
         : 'UNDEFINED';
 
-    // Tenta conectar criando um cliente isolado para garantir que use a var certa se possível,
-    // mas o Prisma Client gerado já tem a var embutida no schema. 
-    // Instanciamos sem args para usar o padrão do schema.
-    const prisma = new PrismaClient({
-        log: ['query', 'info', 'warn', 'error'],
-    });
-
     try {
-        console.log(`[Diagnostic] Attempting connection. Env ${envVarName} is: ${maskedUrl}`);
+        logger.info({ envVarName, maskedUrl }, "[Diagnostic] Attempting connection");
 
         // Força conexão
         await prisma.$connect();
@@ -40,7 +34,7 @@ export async function GET() {
         });
 
     } catch (error: any) {
-        console.error('[Diagnostic] Connection failed:', error);
+        logger.error({ err: error, route: "debug-connection" }, "[Diagnostic] Connection failed");
         return NextResponse.json({
             status: 'ERROR',
             message: 'Falha ao conectar no Banco de Dados',
@@ -55,6 +49,7 @@ export async function GET() {
         }, { status: 500 });
 
     } finally {
-        await prisma.$disconnect();
+        // Não desconecta o Prisma singleton — isso derrubaria a conexão para todas as outras requisições.
+        // O cliente singleton gerencia a conexão automaticamente.
     }
 }

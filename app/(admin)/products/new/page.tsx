@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Trash } from "lucide-react";
@@ -382,7 +383,7 @@ export default function NewProductPage() {
                                         <div className="flex items-center gap-2">
                                             {variant.imageUrl ? (
                                                 <div className="relative h-9 w-9 overflow-hidden rounded-md border">
-                                                    <img src={variant.imageUrl} alt="Var" className="h-full w-full object-cover" />
+                                                    <Image src={variant.imageUrl} alt="Var" fill sizes="36px" className="object-cover" />
                                                     <button
                                                         type="button"
                                                         onClick={() => updateVariant(index, "imageUrl", "")}

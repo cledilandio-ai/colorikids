@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(stores);
     } catch (error) {
-        console.error("Error fetching stores:", error);
+        logger.error({ err: error, route: "super-admin/stores/GET" }, "Error fetching stores");
         return NextResponse.json({ error: "Failed to fetch stores" }, { status: 500 });
     }
 }
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error("Error creating store:", error);
+        logger.error({ err: error, route: "super-admin/stores/POST" }, "Error creating store");
         return NextResponse.json({ error: `Failed to create store: ${error.message}` }, { status: 500 });
     }
 }
@@ -210,7 +211,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Error updating store:", error);
+        logger.error({ err: error, route: "super-admin/stores/PATCH" }, "Error updating store");
         return NextResponse.json({ error: `Failed to update store: ${error.message}` }, { status: 500 });
     }
 }
@@ -282,7 +283,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true, message: "Loja e todos os seus dados foram excluídos com sucesso." });
     } catch (error: any) {
-        console.error("Error deleting store:", error);
+        logger.error({ err: error, route: "super-admin/stores/DELETE" }, "Error deleting store");
         return NextResponse.json({ error: `Falha ao deletar loja e seus registros base. Detalhes: ${error.message}` }, { status: 500 });
     }
 }

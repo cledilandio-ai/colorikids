@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Clock, Calendar, Search, AlertCircle, DollarSign } from "lucide-react";
 import { format } from "date-fns";
@@ -28,12 +28,7 @@ export default function AccountsReceivableList() {
     const [filter, setFilter] = useState("PENDING");
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        fetchReceivables();
-    }, [filter]);
-
-    // Busca as contas baseado no filtro selecionado
-    const fetchReceivables = async () => {
+    const fetchReceivables = useCallback(async () => {
         setLoading(true);
         try {
             const res = await fetch(`/api/finance/receivables?status=${filter}`);
@@ -44,7 +39,11 @@ export default function AccountsReceivableList() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filter]);
+
+    useEffect(() => {
+        fetchReceivables();
+    }, [fetchReceivables]);
 
     // Marca uma conta como paga
     // Envia requisição para API atualizar o status e gerar a transação no caixa

@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/db";
+import { verifyOwnerSchema } from "@/lib/validation";
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     try {
-        const { password } = await request.json();
+        // ── Rate limit: 5 req/min por IP ────────────────────────────────
+        const ip = getClientIp(request);
+        const rateCheck = await checkRateLimit(`auth:verify-owner:${ip}`, RATE_LIMITS.VERIFY_OWNER);
+        if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
 
-        if (!password) {
-            return NextResponse.json({ error: "Senha necessária" }, { status: 400 });
+        const body = await request.json();
+        const parsed = verifyOwnerSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
         }
+
+        const { password } = parsed.data;
 
         // Find ANY user with role OWNER
         const owners = await prisma.user.findMany({
@@ -41,7 +52,7 @@ export async function POST(request: Request) {
         }
 
     } catch (error) {
-        console.error("Error verifying owner password:", error);
+        logger.error({ err: error, route: "auth/verify-owner" }, "Error verifying owner password");
         return NextResponse.json({ error: "Erro interno" }, { status: 500 });
     }
 }

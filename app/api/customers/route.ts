@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { createCustomerSchema, updateCustomerSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +36,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(customers);
     } catch (error) {
+        logger.error({ err: error, route: "customers/GET", storeId }, "Failed to fetch customers");
         return NextResponse.json({ error: "Failed to fetch customers" }, { status: 500 });
     }
 }
@@ -47,18 +50,23 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { name, phone, cpf, email, address } = body;
-
-        if (!name || name.trim() === "") {
-            return NextResponse.json({ error: "Name is required" }, { status: 400 });
+        const parsed = createCustomerSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
         }
 
+        const { name, phone, cpf, email, address } = parsed.data;
+
         const customer = await prisma.customer.create({
-            data: { name, phone, cpf, email, address, storeId }
+            data: { name, phone: phone || null, cpf: cpf || null, email: email || null, address: address || null, storeId }
         });
 
         return NextResponse.json(customer);
     } catch (error) {
+        logger.error({ err: error, route: "customers/POST", storeId }, "Failed to create customer");
         return NextResponse.json({ error: "Failed to create customer" }, { status: 500 });
     }
 }
@@ -72,11 +80,15 @@ export async function PUT(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { id, name, phone, cpf, email, address } = body;
-
-        if (!id || !name) {
-            return NextResponse.json({ error: "ID and Name are required" }, { status: 400 });
+        const parsed = updateCustomerSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
         }
+
+        const { id, name, phone, cpf, email, address } = parsed.data;
 
         // Verifica se o cliente pertence à loja antes de atualizar
         const existing = await prisma.customer.findFirst({ where: { id, storeId } });
@@ -86,11 +98,12 @@ export async function PUT(request: NextRequest) {
 
         const customer = await prisma.customer.update({
             where: { id },
-            data: { name, phone, cpf, email, address }
+            data: { name, phone: phone || null, cpf: cpf || null, email: email || null, address: address || null }
         });
 
         return NextResponse.json(customer);
     } catch (error) {
+        logger.error({ err: error, route: "customers/PUT", storeId }, "Failed to update customer");
         return NextResponse.json({ error: "Failed to update customer" }, { status: 500 });
     }
 }

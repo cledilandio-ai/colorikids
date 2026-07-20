@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { getAuthContext } from "@/lib/auth";
+import { checkRateLimit, getClientIp, rateLimitResponse, RATE_LIMITS } from "@/lib/rateLimiter";
+import { logger } from "@/lib/logger";
 
 /**
  * API de Upload Universal com Sharp (server-side)
  * ------------------------------------------------
  * Garante compressão em TODOS os formatos, incluindo HEIC do iPhone.
+ *
+ * Requer autenticação — qualquer usuário logado (admin, lojista, vendedor) ou super admin.
  *
  * Query params:
  *   ?type=product  → 800px, qualidade 75%, max ~300KB (grade de produtos)
@@ -13,8 +19,20 @@ import sharp from "sharp";
  *
  * Sharp processa: JPEG, PNG, WebP, AVIF, TIFF, GIF e HEIC (via libvips).
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
+        // ── Rate limit: 10 req/min por IP ────────────────────────────────
+        const ip = getClientIp(request);
+        const rateCheck = await checkRateLimit(`upload:${ip}`, RATE_LIMITS.UPLOAD);
+        if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfter);
+
+        // ── Autenticação obrigatória ───────────────────────────────────────
+        const ctx = await getAuthContext(request);
+        const isSuperAdmin = ctx?.role === "SUPER_ADMIN";
+        if (!ctx || (!ctx.storeId && !isSuperAdmin)) {
+            return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+        }
+
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         // Aceita service role (produção) ou anon key (fallback)
         const supabaseKey =
@@ -60,16 +78,15 @@ export async function POST(request: Request) {
 
         try {
             // Sharp converte TUDO para WebP: JPEG, PNG, HEIC, AVIF, GIF, etc.
-            outputBuffer = await sharp(rawBuffer)
+            outputBuffer = Buffer.from(await sharp(rawBuffer)
                 .resize({ width: maxWidth, withoutEnlargement: true })
                 .webp({ quality })
-                .toBuffer();
+                .toBuffer());
 
             const sizeAfter = (outputBuffer.length / 1024).toFixed(0);
-            console.log(`✅ Sharp: ${sizeBefore}KB → ${sizeAfter}KB | ${maxWidth}px | type=${uploadType}`);
+            logger.info({ sizeBefore: `${sizeBefore}KB`, sizeAfter: `${sizeAfter}KB`, maxWidth, uploadType }, "Sharp compression");
         } catch (sharpError) {
-            // Fallback: sobe o arquivo original se o sharp falhar
-            console.error("Sharp falhou, usando original:", sharpError);
+            logger.warn({ err: sharpError, uploadType }, "Sharp failed, using original");
             contentType = file.type;
         }
 
@@ -90,7 +107,7 @@ export async function POST(request: Request) {
             });
 
         if (uploadError) {
-            console.error("Supabase upload error:", uploadError);
+            logger.error({ err: uploadError, route: "upload", filename }, "Supabase upload error");
             return NextResponse.json({ error: uploadError.message }, { status: 500 });
         }
 
@@ -98,10 +115,11 @@ export async function POST(request: Request) {
             .from("uploads")
             .getPublicUrl(filename);
 
+        logger.info({ url: urlData.publicUrl, uploadType }, "Upload successful");
         return NextResponse.json({ success: true, url: urlData.publicUrl });
 
     } catch (error: any) {
-        console.error("Upload error:", error);
+        logger.error({ err: error, route: "upload" }, "Upload error");
         return NextResponse.json({ error: error.message || "Erro interno" }, { status: 500 });
     }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import { Search, Trash, CreditCard, Banknote, QrCode, X, User, Calendar, Copy, Check, Lock, Send, ShoppingCart } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -151,23 +152,7 @@ export default function POSPage() {
         } catch (error) { console.error(error); }
     };
 
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(() => {
-            if (customerSearch.length > 2) searchCustomers();
-            else setCustomers([]);
-        }, 500);
-        return () => clearTimeout(delayDebounceFn);
-    }, [customerSearch]);
-
-    const fetchProducts = async () => {
-        try {
-            const res = await fetch("/api/products");
-            const data = await res.json();
-            if (Array.isArray(data)) setProducts(data);
-        } catch (error) { console.error(error); }
-    };
-
-    const searchCustomers = async () => {
+    const searchCustomers = useCallback(async () => {
         setIsSearchingCustomer(true);
         try {
             const res = await fetch(`/api/customers?search=${customerSearch}`);
@@ -175,6 +160,22 @@ export default function POSPage() {
             setCustomers(data);
         } catch (error) { console.error(error); }
         finally { setIsSearchingCustomer(false); }
+    }, [customerSearch]);
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (customerSearch.length > 2) searchCustomers();
+            else setCustomers([]);
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [customerSearch, searchCustomers]);
+
+    const fetchProducts = async () => {
+        try {
+            const res = await fetch("/api/products");
+            const data = await res.json();
+            if (Array.isArray(data)) setProducts(data);
+        } catch (error) { console.error(error); }
     };
 
     // Cadastro Rápido de Cliente
@@ -760,7 +761,7 @@ export default function POSPage() {
                                 return (
                                 <button key={product.id} onClick={() => handleProductClick(product)} className="text-left group flex flex-col justify-between overflow-hidden rounded-xl border bg-white shadow-sm hover:border-primary hover:bg-blue-50 transition-all duration-200 w-[calc(50%-0.5rem)] sm:w-[12rem] md:w-[13rem] lg:w-[14rem] shrink-0">
                                     <div className="relative h-40 w-full shrink-0 overflow-hidden bg-gray-100">
-                                        {displayImage ? <img src={displayImage} alt={product.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
+                                        {displayImage ? <Image src={displayImage} alt={product.name} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" /> : <div className="flex h-full w-full items-center justify-center text-gray-400">Sem Foto</div>}
                                     </div>
                                     <div className="p-3 w-full flex flex-col flex-1 justify-between gap-1">
                                         <span className="block font-semibold text-gray-800 line-clamp-2 text-sm leading-tight">{product.name}</span>
@@ -881,7 +882,7 @@ export default function POSPage() {
                                             {/* Quick Create Option */}
                                             {customerSearch.length > 2 && !customers.find(c => c.name.toLowerCase() === customerSearch.toLowerCase()) && (
                                                 <div className="p-2 hover:bg-green-50 cursor-pointer text-green-700 font-bold flex items-center gap-2" onClick={handleCreateQuickCustomer}>
-                                                    <span>+ Cadastrar "{customerSearch}"</span>
+                                                    <span>+ Cadastrar &quot;{customerSearch}&quot;</span>
                                                 </div>
                                             )}
                                         </div>

@@ -1,0 +1,52 @@
+# Freebuff CI — GitHub Actions
+# Executa typecheck, lint e testes a cada push no main e em Pull Requests.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: "Typecheck + Lint + Tests"
+    runs-on: ubuntu-latest
+
+    env:
+      # Necessário para o Prisma Client gerar os tipos corretamente
+      POSTGRES_URL: "postgresql://fake:fake@localhost:5432/fake"
+      DIRECT_URL: "postgresql://fake:fake@localhost:5432/fake"
+      JWT_SECRET: "ci-test-secret-for-github-actions-32chars"
+      NEXT_PUBLIC_SUPABASE_URL: "https://fake.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "fake-anon-key"
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Typecheck (TypeScript)
+        run: npx tsc --noEmit --pretty
+        # Project has ignoreBuildErrors: true in next.config.js,
+        # but typecheck runs independently to catch type errors.
+
+      - name: Lint (ESLint)
+        run: npm run lint
+        # Lint agora tem 0 erros — falha se introduzir novos.
+        # Warnings (no-img-element/exhaustive-deps) não bloqueiam.
+
+      - name: Testes unitários (Vitest)
+        run: npx vitest run --reporter=verbose

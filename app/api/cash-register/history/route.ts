@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getAuthContext } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
-const prisma = new PrismaClient();
+export async function GET(request: NextRequest) {
+    const ctx = await getAuthContext(request);
+    if (!ctx?.storeId) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const { storeId } = ctx;
 
-export async function GET() {
     try {
         const registers = await prisma.cashRegister.findMany({
+            where: { storeId },
             orderBy: { openedAt: "desc" },
             include: {
                 orders: {
+                    where: { storeId },
                     include: { payments: true }
                 }
             }
@@ -61,7 +70,7 @@ export async function GET() {
 
         return NextResponse.json(history);
     } catch (error) {
-        console.error("Error fetching register history:", error);
+        logger.error({ err: error, route: "cash-register/history/GET", storeId }, "Error fetching register history");
         return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 });
     }
 }

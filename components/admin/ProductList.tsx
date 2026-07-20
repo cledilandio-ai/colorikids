@@ -95,7 +95,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
             {searchTerm && (
                 <p className="text-sm text-gray-500">
                     <span className="font-semibold text-gray-700">{filteredProducts.length}</span> resultado{filteredProducts.length !== 1 ? "s" : ""} para{" "}
-                    <span className="font-semibold text-pink-600">"{searchTerm}"</span>
+                    <span className="font-semibold text-pink-600">&quot;{searchTerm}&quot;</span>
                 </p>
             )}
 
@@ -119,7 +119,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
                                 <tr>
                                     <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                                         {searchTerm
-                                            ? <span>Nenhum produto encontrado para <strong>"{searchTerm}"</strong>.<br /><span className="text-xs">Tente buscar por nome, SKU, categoria ou fornecedor.</span></span>
+                                            ? <span>Nenhum produto encontrado para <strong>&quot;{searchTerm}&quot;</strong>.<br /><span className="text-xs">Tente buscar por nome, SKU, categoria ou fornecedor.</span></span>
                                             : "Nenhum produto cadastrado."
                                         }
                                     </td>
@@ -172,7 +172,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
             <div className="md:hidden space-y-4">
                 {filteredProducts.length === 0 ? (
                     <div className="text-center text-gray-500 py-8">
-                        {searchTerm ? `Nenhum produto encontrado para "${searchTerm}".` : "Nenhum produto cadastrado."}
+                        {searchTerm ? `Nenhum produto encontrado para &quot;${searchTerm}&quot;.` : "Nenhum produto cadastrado."}
                     </div>
                 ) : (
                     filteredProducts.map((product) => {

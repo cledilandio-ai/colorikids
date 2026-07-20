@@ -171,6 +171,7 @@ export default async function InventoryDashboardPage() {
             costPrice: p.costPrice,
             lastRestockAt: lastInput,
             lastSoldAt: p.lastSoldAt || null,
+            createdAt: p.createdAt,
             status: status,
             variantCount: p.variantCount,
             hasBrokenGrid: p.hasBrokenGrid,

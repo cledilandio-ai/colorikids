@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthContext } from "@/lib/auth";
+import { restockSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
     const ctx = await getAuthContext(request);
@@ -12,14 +14,15 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { variantId, quantity, unitCost, productId, size, color, imageUrl, minStock } = body;
-
-        if (!quantity || unitCost === undefined) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+        const parsed = restockSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({
+                error: "Dados inválidos",
+                details: parsed.error.flatten().fieldErrors,
+            }, { status: 400 });
         }
 
-        const qty = parseInt(quantity);
-        const cost = parseFloat(unitCost);
+        const { variantId, quantity: qty, unitCost: cost, productId, size, color, imageUrl, minStock } = parsed.data;
 
         await prisma.$transaction(async (tx) => {
             let targetVariantId = variantId;
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
                         color: color || null,
                         imageUrl: imageUrl || null,
                         stockQuantity: 0,
-                        minStock: parseInt(minStock) || 1,
+                        minStock,
                         lastRestockAt: new Date(),
                         sku: `${size}-${color || 'STD'}-${Date.now().toString().slice(-4)}`
                     },
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error("Error processing restock:", error);
+        logger.error({ err: error, route: "stock/restock/POST", storeId }, "Error processing restock");
         return NextResponse.json({ error: `Error processing restock: ${(error as Error).message}` }, { status: 500 });
     }
 }

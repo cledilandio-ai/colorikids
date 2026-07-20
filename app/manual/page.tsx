@@ -18,11 +18,11 @@ const TOPICS = [
                 <ul className="list-disc pl-5 space-y-2 font-medium">
                     <li>Se fechado, o sistema abre um pop-up pedindo o <strong>Valor Inicial</strong> (Fundo de troco do dia).</li>
                     <li>O sistema sugere automaticamente o valor que ficou na gaveta no dia anterior.</li>
-                    <li>Se você digitar um valor maior que o esperado, o sistema perguntará: <em>"Detectada diferença... Isso foi retirado do Caixa Principal (Tesouraria)?"</em>. Marque a caixa vermelha se foi.</li>
+                    <li>Se você digitar um valor maior que o esperado, o sistema perguntará: <em>&quot;Detectada diferença... Isso foi retirado do Caixa Principal (Tesouraria)?&quot;</em>. Marque a caixa vermelha se foi.</li>
                 </ul>
                 <h3 className="text-lg font-bold text-slate-800 mt-4 mb-2">Fechamento:</h3>
                 <ul className="list-disc pl-5 space-y-2 font-medium">
-                    <li>Ao clicar em <strong>Fechar Caixa</strong> (botão vermelho no topo do PDV), o sistema exibe o **Total Esperado** (Troco + Vendas apenas em Dinheiro vivo efetuadas no dia). Pagamentos em Pix e Cartão caem no sistema, mas não aumentam o cálculo físico da 'gaveta'.</li>
+                    <li>Ao clicar em <strong>Fechar Caixa</strong> (botão vermelho no topo do PDV), o sistema exibe o **Total Esperado** (Troco + Vendas apenas em Dinheiro vivo efetuadas no dia). Pagamentos em Pix e Cartão caem no sistema, mas não aumentam o cálculo físico da &apos;gaveta&apos;.</li>
                     <li>Você deve realizar a contagem física: digite exatamente o que está na gaveta e o que deseja **Transferir para Tesouraria** (sangria de final do expediente). O que sobrar será salvo para o fundo do dia seguinte!</li>
                 </ul>
             </>
@@ -65,7 +65,7 @@ const TOPICS = [
                 <h3 className="text-lg font-bold text-slate-800 mt-5 mb-2">🔒 A Regra do Desconto</h3>
                 <p className="mb-2">Quando a compra estiver montada, você pode dar descontos em <strong>R$ ou %</strong>. Mas atenção! Se você for um Vendedor, o lojista definiu sua faixa máxima de desconto.</p>
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg mt-2 text-red-900 text-sm">
-                    🛑 <strong>A Trava do Vendedor:</strong> Se você digitar um desconto de 20% mas o seu limite for 10%, a tela bloqueará o total e aparecerá o link <strong>"Solicitar Autorização"</strong>. A lojista pode se aproximar, digitar a senha mestra e liberar o desconto naquele momento exato para salvar a venda!
+                    🛑 <strong>A Trava do Vendedor:</strong> Se você digitar um desconto de 20% mas o seu limite for 10%, a tela bloqueará o total e aparecerá o link <strong>&quot;Solicitar Autorização&quot;</strong>. A lojista pode se aproximar, digitar a senha mestra e liberar o desconto naquele momento exato para salvar a venda!
                 </div>
             </>
         )
@@ -79,18 +79,18 @@ const TOPICS = [
         content: (
             <>
                 <h3 className="text-lg font-bold text-slate-800 mt-2 mb-2">Múltiplos Pagamentos ao Mesmo Tempo</h3>
-                <p className="mb-4">Se a conta deu R$ 150 e a cliente quer pagar R$ 50 no Cartão e R$ 100 no Pix, basta clicar no método respectivo, digitar o valor, aplicar e escolher o próximo método. O sistema monitora a balança de "Falta Pagar" ou "Troco Pendente" automaticamente.</p>
+                <p className="mb-4">Se a conta deu R$ 150 e a cliente quer pagar R$ 50 no Cartão e R$ 100 no Pix, basta clicar no método respectivo, digitar o valor, aplicar e escolher o próximo método. O sistema monitora a balança de &quot;Falta Pagar&quot; ou &quot;Troco Pendente&quot; automaticamente.</p>
                 
                 <h3 className="text-lg font-bold text-slate-800 mt-4 mb-2">A Regra do Crediário (Fiado)</h3>
                 <ul className="list-disc pl-5 space-y-2 font-medium">
-                    <li>A plataforma aceita o botão <strong>"Crediário"</strong>. O sistema anotará individualmente na conta da cliente.</li>
+                    <li>A plataforma aceita o botão <strong>&quot;Crediário&quot;</strong>. O sistema anotará individualmente na conta da cliente.</li>
                     <li>Ao selecionar Crediário, aparecerá um campo obrigatório para a **Data de Vencimento** daquela promissória.</li>
-                    <li><strong>Proteção:</strong> É impossível fechar a compra como "Crediário" se você não tiver selecionado quem é o cliente!</li>
+                    <li><strong>Proteção:</strong> É impossível fechar a compra como &quot;Crediário&quot; se você não tiver selecionado quem é o cliente!</li>
                 </ul>
 
                 <h3 className="text-lg font-bold text-slate-800 mt-4 mb-2">Cadastro Rápido Clicou-Cadastrou</h3>
                 <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-2 text-blue-900 text-sm font-medium">
-                    🔍 Na barra de Clientes do PDV, digite o nome do cliente que está na sua frente. Se a busca mostrar "Nenhum resultado", mas você tiver digitado mais de 3 letras, aparecerá um botão mágico escrito <strong>+ Cadastrar NOME...</strong>. Clique nele e a venda será registrada para essa pessoa no primeiro clique. Zero telas complicadas!
+                    🔍 Na barra de Clientes do PDV, digite o nome do cliente que está na sua frente. Se a busca mostrar &quot;Nenhum resultado&quot;, mas você tiver digitado mais de 3 letras, aparecerá um botão mágico escrito <strong>+ Cadastrar NOME...</strong>. Clique nele e a venda será registrada para essa pessoa no primeiro clique. Zero telas complicadas!
                 </div>
             </>
         )
@@ -111,7 +111,7 @@ const TOPICS = [
 
                 <h3 className="text-lg font-bold text-slate-800 mt-6 mb-2">Botão Mágico de Repor Estoque</h3>
                 <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-lg mt-2 text-indigo-900 text-sm">
-                    ⚠️ Ao lado do título "Produtos" e dentro da Vitrine, há o botão verde <strong>Repor Estoque</strong>. Nunca atualize a quantidade "na mão" para o que chegou da caixa do correio. Entre em "Repor Estoque" daquela grade com o produto que chegou, e digite a entrada (Ex: Chegaram mais +5 da China). O sistema perguntará se quer somar os custos dessa recém-produção em um "registro de saída na Tesouraria" automático!
+                    ⚠️ Ao lado do título &quot;Produtos&quot; e dentro da Vitrine, há o botão verde <strong>Repor Estoque</strong>. Nunca atualize a quantidade &quot;na mão&quot; para o que chegou da caixa do correio. Entre em &quot;Repor Estoque&quot; daquela grade com o produto que chegou, e digite a entrada (Ex: Chegaram mais +5 da China). O sistema perguntará se quer somar os custos dessa recém-produção em um &quot;registro de saída na Tesouraria&quot; automático!
                 </div>
             </>
         )
@@ -125,9 +125,9 @@ const TOPICS = [
         content: (
             <>
                 <ul className="list-disc pl-5 mt-2 space-y-3 font-medium">
-                    <li><strong>Dashboard Reluzente:</strong> Sua tela inicial (Dashboard) condensa o financeiro de forma fácil, separando os tipos de caixa, descontando todas as vezes que você clicar em "Repor estoque". Dando acesso as transações mais recentes da loja.</li>
-                    <li><strong>Despesas Operacionais:</strong> Aluguel, impulsionamento do instagram e lanches não são compras fornecedoras. Na aba "Tesouraria / Financeiro", clique em <em>Lançar Despesa</em>. Essas saídas são fundamentais para que as barras de Lucratividade mostrem o quão rentável seu mês se tornou.</li>
-                    <li><strong>Configurações Finais:</strong> A qualquer momento, na tela "Minha Loja", mude seu Nome, Descrição e seu WhatsApp. É esse WhatsApp que aparece pro cliente final em `/c/sua_loja`, enviando o pedido final direto no seu bolso com a saudação exata.</li>
+                    <li><strong>Dashboard Reluzente:</strong> Sua tela inicial (Dashboard) condensa o financeiro de forma fácil, separando os tipos de caixa, descontando todas as vezes que você clicar em &quot;Repor estoque&quot;. Dando acesso as transações mais recentes da loja.</li>
+                    <li><strong>Despesas Operacionais:</strong> Aluguel, impulsionamento do instagram e lanches não são compras fornecedoras. Na aba &quot;Tesouraria / Financeiro&quot;, clique em <em>Lançar Despesa</em>. Essas saídas são fundamentais para que as barras de Lucratividade mostrem o quão rentável seu mês se tornou.</li>
+                    <li><strong>Configurações Finais:</strong> A qualquer momento, na tela &quot;Minha Loja&quot;, mude seu Nome, Descrição e seu WhatsApp. É esse WhatsApp que aparece pro cliente final em `/c/sua_loja`, enviando o pedido final direto no seu bolso com a saudação exata.</li>
                 </ul>
             </>
         )
@@ -187,8 +187,8 @@ export default function ManualPage() {
                 <div className="space-y-8">
                     {filteredTopics.length === 0 ? (
                         <div className="text-center py-12 text-slate-500">
-                            <p className="text-lg font-semibold">Nenhum resultado encontrado para "{search}"</p>
-                            <p className="text-sm">Tente buscar por termos como "produto", "vendas" ou "estoque".</p>
+                            <p className="text-lg font-semibold">Nenhum resultado encontrado para &quot;{search}&quot;</p>
+                            <p className="text-sm">Tente buscar por termos como &quot;produto&quot;, &quot;vendas&quot; ou &quot;estoque&quot;.</p>
                             <button onClick={() => setSearch("")} className="mt-4 text-primary font-medium hover:underline">Limpar busca</button>
                         </div>
                     ) : (

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import { ArrowLeft, Printer, CheckCircle, XCircle, Trash, Edit, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -15,12 +16,7 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
     const [variants, setVariants] = useState<any[]>([]);
     const [showReturnModal, setShowReturnModal] = useState(false);
 
-    useEffect(() => {
-        fetchOrder();
-        fetchVariants();
-    }, []);
-
-    const fetchOrder = async () => {
+    const fetchOrder = useCallback(async () => {
         try {
             const res = await fetch(`/api/orders/${params.id}`);
             if (res.ok) {
@@ -35,9 +31,9 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
         } finally {
             setLoading(false);
         }
-    };
+    }, [params.id, router]);
 
-    const fetchVariants = async () => {
+    const fetchVariants = useCallback(async () => {
         try {
             const res = await fetch("/api/products"); // This fetches products, we might need a better way to get all variants or just fetch relevant ones.
             // For now, let's assume we can get product details. 
@@ -50,7 +46,12 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
         } catch (error) {
             console.error(error);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchOrder();
+        fetchVariants();
+    }, [fetchOrder, fetchVariants]);
 
     const handleStatusChange = async (newStatus: string) => {
         if (!confirm(`Deseja alterar o status para ${newStatus === "COMPLETED" ? "Concluído" : "Cancelado"}?`)) return;
@@ -210,12 +211,14 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                                     <tr key={index}>
                                         <td className="py-4 pl-4 font-medium text-gray-900">
                                             <div className="flex items-center gap-4">
-                                                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-gray-100 border">
+                                                <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-gray-100 border">
                                                     {item.imageUrl ? (
-                                                        <img
+                                                        <Image
                                                             src={item.imageUrl}
                                                             alt={item.name}
-                                                            className="h-full w-full object-cover"
+                                                            fill
+                                                            sizes="64px"
+                                                            className="object-cover"
                                                         />
                                                     ) : (
                                                         <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
