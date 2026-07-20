@@ -30,11 +30,48 @@ jobs:
           node-version: 20
           cache: "npm"
 
+      - name: Diagnosticar ambiente
+        run: |
+          echo "=== Node.js ==="
+          node --version
+          echo "=== npm ==="
+          npm --version
+          echo "=== npm cache ==="
+          npm cache ls 2>&1 || echo "Cache vazio ou erro"
+
       - name: Instalar dependências
-        run: npm ci
-        # Lockfile gerado localmente com npm v11 — CI usa Node 24
-        # (mesma versão do ambiente dev) para evitar incompatibilidade.
-        # Se falhar, verificar se package-lock.json está sincronizado.
+        id: install
+        run: npm ci --loglevel verbose 2>&1 || (echo "NPM_CI_FAILED=1" >> $GITHUB_ENV && exit 1)
+        continue-on-error: true
+        # Node 20 — versão usada no commit original que passou no CI.
+        # TODO: migrar para Node 22 LTS e regenerar lockfile do zero.
+
+      - name: Capturar log de erro do npm
+        if: always() && steps.install.outcome == 'failure'
+        run: |
+          echo "=== npm debug log (ultimo) ==="
+          ls -t ~/.npm/_logs/ 2>&1 | head -5
+          LAST_LOG=$(ls -t ~/.npm/_logs/*.log 2>&1 | head -1)
+          if [ -f "$LAST_LOG" ]; then
+            echo "--- log: $LAST_LOG ---"
+            cat "$LAST_LOG"
+          fi
+          echo "=== node_modules status ==="
+          ls node_modules/.package-lock.json 2>&1 || echo "node_modules nao instalado"
+          echo "=== Exit code do npm ci ==="
+          echo "Falhou"
+
+      - name: Upload npm debug log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-debug-log
+          path: ~/.npm/_logs/*.log
+          retention-days: 3
+
+      - name: Falhar se npm ci falhou
+        if: steps.install.outcome == 'failure'
+        run: exit 1
 
       - name: Gerar Prisma Client
         run: npx prisma generate
