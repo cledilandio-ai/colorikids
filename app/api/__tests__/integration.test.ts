@@ -23,6 +23,14 @@ vi.mock("@/lib/logger", () => ({
   securityLog: mockSecurityLog,
 }));
 
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: vi.fn(() => ({
+    storage: {
+      listBuckets: vi.fn().mockResolvedValue({ data: [], error: null }),
+    },
+  })),
+}));
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     $queryRaw: vi.fn(),
@@ -141,6 +149,10 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.JWT_SECRET;
+  delete process.env.POSTGRES_URL;
+  delete process.env.DIRECT_URL;
+  delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 });
 
 // ==============================================================================
@@ -152,6 +164,10 @@ describe("GET /api/health", () => {
     (prisma.$queryRaw as any).mockResolvedValue([{ "1": 1 }]);
 
     process.env.JWT_SECRET = "test-secret-for-testing";
+    process.env.POSTGRES_URL = "postgresql://localhost";
+    process.env.DIRECT_URL = "postgresql://localhost";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
 
     const { GET } = await import("../health/route");
     const response = await GET();

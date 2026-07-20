@@ -1,3 +1,6 @@
-npx tsc --noEmit --pretty
+npm run type-check
 npx next lint
 npx vitest run
+
+
+
