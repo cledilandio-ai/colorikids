@@ -6,6 +6,8 @@ name: CI
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   quality:
@@ -30,68 +32,8 @@ jobs:
           node-version: 20
           cache: "npm"
 
-      - name: Diagnosticar ambiente
-        run: |
-          echo "=== Node.js ==="
-          node --version
-          echo "=== npm ==="
-          npm --version
-          echo "=== npm cache ==="
-          npm cache ls 2>&1 || echo "Cache vazio ou erro"
-
       - name: Instalar dependências
-        id: install
-        run: |
-          npm ci --loglevel verbose 2>&1 | tee /tmp/npm-ci-output.log
-          exit_code=${PIPESTATUS[0]}
-          if [ $exit_code -ne 0 ]; then
-            echo "NPM_CI_FAILED=1" >> $GITHUB_ENV
-            echo "npm ci falhou com exit code $exit_code" > /tmp/npm-ci-error.log
-            echo "=== Ultimas 50 linhas do output ===" >> /tmp/npm-ci-error.log
-            tail -50 /tmp/npm-ci-output.log >> /tmp/npm-ci-error.log
-            exit $exit_code
-          fi
-        continue-on-error: true
-        # Node 20 — versão usada no commit original que passou no CI.
-        # TODO: migrar para Node 22 LTS e regenerar lockfile do zero.
-
-      - name: Capturar log de erro do npm
-        if: always() && steps.install.outcome == 'failure'
-        run: |
-          echo "=== node --version ==="
-          node --version
-          echo "=== npm --version ==="
-          npm --version
-          echo "=== npm cache ls ==="
-          npm cache ls 2>&1 || echo "cache vazio"
-          echo "=== npm debug log (ultimo) ==="
-          ls -t ~/.npm/_logs/ 2>&1 | head -5
-          LAST_LOG=$(ls -t ~/.npm/_logs/*.log 2>&1 | head -1)
-          if [ -f "$LAST_LOG" ]; then
-            echo "--- log: $LAST_LOG ---"
-            cat "$LAST_LOG"
-          else
-            echo "Nenhum log npm encontrado"
-          fi
-          echo "=== node_modules status ==="
-          ls node_modules/.package-lock.json 2>&1 || echo "node_modules nao instalado"
-          echo "=== Output capturado do npm ci ==="
-          cat /tmp/npm-ci-error.log 2>/dev/null || echo "sem log de erro"
-          cat /tmp/npm-ci-output.log 2>/dev/null || echo "sem log de output"
-
-      - name: Upload npm debug log
-        if: always() && steps.install.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-debug-log
-          path: |
-            ~/.npm/_logs/*.log
-            /tmp/npm-ci-*.log
-          retention-days: 3
-
-      - name: Falhar se npm ci falhou
-        if: steps.install.outcome == 'failure'
-        run: exit 1
+        run: npm ci
 
       - name: Gerar Prisma Client
         run: npx prisma generate
