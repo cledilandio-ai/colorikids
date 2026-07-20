@@ -27,15 +27,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: "npm"
 
       - name: Instalar dependências
-        run: |
-          npm install --prefer-offline --no-audit --no-fund --legacy-peer-deps
-          # Usamos npm install em vez de npm ci porque o lockfile foi gerado
-          # com npm v11 (Node 24 local) e o CI roda npm v10 (Node 22),
-          # causando incompatibilidade no formato lockfile v3.
+        run: npm ci
+        # Lockfile gerado localmente com npm v11 — CI usa Node 24
+        # (mesma versão do ambiente dev) para evitar incompatibilidade.
+        # Se falhar, verificar se package-lock.json está sincronizado.
 
       - name: Gerar Prisma Client
         run: npx prisma generate
