@@ -1,5 +1,5 @@
 # Freebuff CI — GitHub Actions
-# Executa typecheck, lint e testes a cada push no main e em Pull Requests.
+# Executa typecheck, lint e testes a cada push no main.
 
 name: CI
 
@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      # Necessário para o Prisma Client gerar os tipos corretamente
       POSTGRES_URL: "postgresql://fake:fake@localhost:5432/fake"
       DIRECT_URL: "postgresql://fake:fake@localhost:5432/fake"
       JWT_SECRET: "ci-test-secret-for-github-actions-32chars"
@@ -32,23 +31,15 @@ jobs:
 
       - name: Instalar dependências
         run: npm install --frozen-lockfile
-        # npm ci falha no runner atual (ubuntu-22.04/24.04) mesmo com config
-        # que funcionava antes. Usamos npm install --frozen-lockfile como
-        # workaround. Isso mantém o lockfile intacto.
-        # TODO: investigar causa raiz e voltar para npm ci
 
       - name: Gerar Prisma Client
         run: npx prisma generate
 
       - name: Typecheck (TypeScript)
         run: npx tsc --noEmit --pretty
-        # Project has ignoreBuildErrors: true in next.config.js,
-        # but typecheck runs independently to catch type errors.
 
       - name: Lint (ESLint)
         run: npm run lint
-        # Lint agora tem 0 erros — falha se introduzir novos.
-        # Warnings (no-img-element/exhaustive-deps) não bloqueiam.
 
       - name: Testes unitários (Vitest)
         run: npx vitest run --reporter=verbose
