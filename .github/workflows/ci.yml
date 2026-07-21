@@ -29,8 +29,61 @@ jobs:
           node-version: 24
           cache: "npm"
 
+      - name: Diagnosticar ambiente
+        run: |
+          node --version
+          npm --version
+          echo "--- Git status ---"
+          git status
+          echo "--- Lockfile size ---"
+          ls -la package-lock.json
+          echo "--- Lockfile first 5 lines (hex) ---"
+          head -5 package-lock.json | cat -A
+          echo "--- Check .gitattributes ---"
+          cat .gitattributes 2>/dev/null || echo "NO .GITATTRIBUTES"
+
       - name: Instalar dependências
-        run: npm ci
+        id: install
+        continue-on-error: true
+        run: |
+          npm ci --loglevel verbose 2>&1 | tee /tmp/npm-ci-output.log
+          exit_code=${PIPESTATUS[0]}
+          if [ $exit_code -ne 0 ]; then
+            echo "NPM_CI_FAILED=1" >> $GITHUB_ENV
+            echo "npm ci falhou com exit code $exit_code" > /tmp/npm-ci-error.log
+            tail -50 /tmp/npm-ci-output.log >> /tmp/npm-ci-error.log
+            exit $exit_code
+          fi
+
+      - name: Capturar log de erro do npm
+        if: always() && steps.install.outcome == 'failure'
+        run: |
+          echo "=== Node / npm versions ==="
+          node --version
+          npm --version
+          echo "=== npm cache logs ==="
+          ls -la ~/.npm/_logs/ 2>/dev/null || echo "No npm logs dir"
+          for f in ~/.npm/_logs/*.log; do
+            echo "=== $(basename $f) ==="
+            cat "$f"
+          done 2>/dev/null || echo "No npm debug logs"
+          echo "=== Captured error ==="
+          cat /tmp/npm-ci-error.log 2>/dev/null || echo "No captured error"
+          echo "=== npm ci output (last 100 lines) ==="
+          tail -100 /tmp/npm-ci-output.log 2>/dev/null || echo "No output log"
+
+      - name: Upload npm debug log as artifact
+        if: always() && steps.install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-debug-log
+          path: |
+            ~/.npm/_logs/*.log
+            /tmp/npm-ci-*.log
+
+      - name: Falhar se npm ci falhou
+        if: steps.install.outcome == 'failure'
+        run: exit 1
 
       - name: Gerar Prisma Client
         run: npx prisma generate
