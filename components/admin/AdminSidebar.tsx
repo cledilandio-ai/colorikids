@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Archive, PanelLeftClose, PanelLeftOpen, ShoppingBag } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Menu, X, Archive, PanelLeftClose, PanelLeftOpen, ShoppingBag, FileText } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/context/SettingsContext";
@@ -25,6 +25,7 @@ export function AdminSidebar({ role, permissions = [] }: AdminSidebarProps) {
         { href: "/dashboard", label: "Visão Geral", icon: LayoutDashboard },
         { href: "/products", label: "Produtos", icon: Package },
         { href: "/admin/estoque/dashboard", label: "Estoque (Dash)", icon: Archive },
+        { href: "/admin/estoque/nfe", label: "Entrada NF-e", icon: FileText },
         { href: "/orders", label: "Pedidos", icon: ShoppingBag },
         { href: "/pos", label: "PDV (Caixa)", icon: ShoppingCart },
         { href: "/clientes", label: "Clientes", icon: Users },

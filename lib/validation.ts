@@ -160,6 +160,35 @@ export const changePasswordSchema = z.object({
     newPassword: z.string().min(8, "Senha deve ter no mínimo 8 caracteres").max(128),
 });
 
+// ─── 12. NF-e Import Confirm ─────────────────────────────────────────────────
+
+const nfeImportItemSchema = z.object({
+    nfeItemNumber: z.number().int().positive(),
+    nfeCode: z.string().optional().default(""),
+    description: z.string().optional().default(""),
+    unit: z.string().optional().default("UN"),
+    quantity: z.number().positive(),
+    unitValue: z.number().min(0),
+    totalValue: z.number().min(0),
+    matched: z.boolean(),
+    matchedBy: z.enum(["SKU", "NAME", "MANUAL"]).nullable().optional(),
+    variantId: z.string().nullable().optional(),
+    productId: z.string().nullable().optional(),
+    ignore: z.boolean().optional().default(false),
+    isNewProduct: z.boolean().optional().default(false),
+});
+
+export const nfeImportConfirmSchema = z.object({
+    accessKey: z.string().length(44, "Chave de acesso deve ter 44 dígitos"),
+    nfeNumber: z.string().optional(),
+    serie: z.string().optional(),
+    supplierName: z.string().optional(),
+    supplierCnpj: z.string().optional(),
+    totalValue: z.number().min(0).optional(),
+    xmlRaw: z.string().optional(),
+    items: z.array(nfeImportItemSchema).min(1, "Pelo menos um item é obrigatório"),
+});
+
 // ─── 11. Verify Owner Password ───────────────────────────────────────────────
 
 export const verifyOwnerSchema = z.object({

@@ -31,6 +31,7 @@ model Store {
   transactionCategories TransactionCategory[]
   stockMovements StockMovement[]
   inventoryLogs  InventoryLog[]
+  nfeImports    NfeImport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -258,6 +259,60 @@ model InventoryLog {
 
   storeId   String
   store     Store    @relation(fields: [storeId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+// =============================================================================
+// NF-e (Nota Fiscal Eletrônica) — Importação de Estoque via XML
+// =============================================================================
+
+model NfeImport {
+  id           String   @id @default(uuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id])
+
+  accessKey    String   @unique // Chave de 44 dígitos (evita import duplicado)
+  nfeNumber    Int              // Número da NF-e
+  serie        Int
+  issuedAt     DateTime         // Data de emissão
+  supplierCnpj String
+  supplierName String
+  totalValue   Float
+  xmlRaw       String?  // XML original (opcional, para debug/reprocessamento)
+  status       String   @default("PENDING") // PENDING, CONFIRMED, REJECTED
+  itemsTotal   Int      @default(0)
+  itemsMatched Int      @default(0)
+
+  items        NfeImportItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model NfeImportItem {
+  id              String   @id @default(uuid())
+  nfeImportId     String
+  nfeImport       NfeImport @relation(fields: [nfeImportId], references: [id])
+
+  // Dados do XML
+  nfeItemNumber   Int      // Número do item na NF-e (det nItem)
+  nfeCode         String   // cProd (código do produto na nota)
+  description     String   // xProd
+  ncm             String?
+  cfop            String?
+  unit            String   // uCom
+  quantity        Float
+  unitValue       Float
+  totalValue      Float
+
+  // Matching com sistema
+  productId       String?  // Produto existente matchado
+  variantId       String?  // Variante existente matchada
+  matchedBy       String?  // "SKU", "NAME", "MANUAL"
+
+  stockMovementId String?  // StockMovement criado ao confirmar
+  inventoryLogId  String?  // InventoryLog criado ao confirmar
 
   createdAt DateTime @default(now())
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Tag } from "lucide-react";
+import { Plus, Search, Tag, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductActions } from "@/components/admin/ProductActions";
 
@@ -82,6 +82,12 @@ export function ProductList({ initialProducts }: ProductListProps) {
                             </button>
                         )}
                     </div>
+                    <Link href="/admin/estoque/nfe">
+                        <Button variant="outline" className="gap-2 border-green-300 text-green-700 hover:bg-green-50 whitespace-nowrap">
+                            <FileText className="h-4 w-4" />
+                            Importar NF-e
+                        </Button>
+                    </Link>
                     <Link href="/products/new">
                         <Button className="gap-2 bg-pink-600 hover:bg-pink-700 whitespace-nowrap">
                             <Plus className="h-4 w-4" />
