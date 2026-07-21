@@ -427,18 +427,10 @@ npx vitest run
 - [x] Health check endpoint — /api/health
 - [x] CORS middleware — origens configuráveis via env var
 - [x] Testes de integração — 11 testes (auth + rate limit + Zod + logging)
-- [x] Rate limiter Redis — Upstash sliding window + fallback in-memory
-- [x] Lint — ZERO erros, ZERO warnings
-- [x] Typecheck global — zero erros
-- [x] Pre-commit hook — tsc + next lint + vitest (bloqueante)
-- [x] CI/CD — GitHub Actions (tsc + lint + vitest)
-- [x] Husky — hook bloqueante no commit (tsc + lint + vitest)
-- [x] Unescaped entities — 52 erros corrigidos em 4 arquivos
-- [x] Exhaustive-deps — 5 warnings corrigidos (useCallback)
-- [x] No-img-element — 8 `<img>` migrados para `<Image />`
-- [x] next.config.js — ignoreBuildErrors e ignoreDuringBuilds removidos
 - [x] OpenAPI/Swagger — documentação de 47 rotas
-- [x] README — documentação do projeto
+- [x] README — documentação técnica completa do projeto
+- [x] Plano de Upgrade Next 16 — roadmap de 4 fases (`PLANO_UPGRADE_NEXT_16.md`)
+- [x] Script `npm test` — adicionado ao `package.json`
 - [x] Commit oficial — `b8eef534` (67 arquivos, +6.227 linhas)
 - [x] Estabilização do CI — Node 24 LTS + .gitattributes + lockfile v3 (`6ca29e55`)
 
@@ -452,7 +444,8 @@ npx vitest run
 | **.gitattributes** | Criado com regras `* text=auto eol=lf` | Fim dos problemas de LF/CRLF entre Windows e Linux |
 | **Lockfile v3** | Regenerado do zero em ambiente isolado | Sincronia total entre `package.json` e `package-lock.json` |
 | **Instalação CI** | Ajustado para `npm install --frozen-lockfile` | Maior velocidade e estabilidade na execução |
-| **Eventos CI** | Removido gatilho duplicado de `pull_request` | Evita execuções redutantes nos pushes diretos na `main` |
+| **Eventos CI** | Removido gatilho duplicado de `pull_request` | Evita execuções redundantes nos pushes diretos na `main` |
+| **Plano Next 16** | Criado [`PLANO_UPGRADE_NEXT_16.md`](PLANO_UPGRADE_NEXT_16.md) | Roadmap detalhado para upgrade Next 14 → 16 |
 
 ---
 
@@ -460,6 +453,7 @@ npx vitest run
 
 | Prioridade | Tarefa | Esforço | Impacto |
 |:----------:|--------|:-------:|:-------:|
+| 🟠 Média | Iniciar Fase 0 do Upgrade (ESLint 8 → 9 flat config) | 1h | Preparação Next 16 |
 | 🟢 Média | Branch protection no GitHub (Settings > Branches) | 10min | Segurança |
 | 🟢 Baixa | Testar `next build` completo em ambiente staging | 5min | Validação |
 
@@ -469,10 +463,10 @@ npx vitest run
 
 | Métrica | Valor |
 |---------|:-----:|
-| Arquivos criados | 15 (incluindo `.gitattributes`) |
-| Arquivos modificados | 68 |
-| Linhas inseridas | +6.250 |
-| Linhas removidas | -390 |
+| Arquivos criados | 16 (incluindo `PLANO_UPGRADE_NEXT_16.md` e `.gitattributes`) |
+| Arquivos modificados | 69 |
+| Linhas inseridas | +6.550 |
+| Linhas removidas | -410 |
 | Testes unitários | 76 (50 Zod + 15 rate limiter + 11 integração) |
 | Schemas Zod | 11 |
 | Endpoints protegidos (rate limit) | 7 |
@@ -487,6 +481,7 @@ npx vitest run
 
 ---
 
-*Última atualização: 21/07/2026 — Commit `6ca29e55`*
+*Última atualização: 21/07/2026 — Plano Next 16 & Script Test*
+
 
 
