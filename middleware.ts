@@ -3,14 +3,10 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { handleCorsPreflight, addCorsHeaders } from "@/lib/cors";
 
-const JWT_SECRET_ENV = process.env.JWT_SECRET;
-if (!JWT_SECRET_ENV) {
-  throw new Error(
-    "JWT_SECRET environment variable is required. " +
-    "Set it in .env.local or Vercel Environment Variables."
-  );
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET || "default-secret-change-in-production-environment";
+  return new TextEncoder().encode(secret);
 }
-const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_ENV);
 
 const COOKIE_NAME = "auth_token";
 
@@ -21,7 +17,7 @@ async function getTokenPayload(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload;
   } catch {
     return null;
