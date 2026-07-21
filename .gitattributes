@@ -1,0 +1,21 @@
+# Auto detect text files and normalize LF
+* text=auto
+
+# Lockfile must NOT have line ending conversion — npm ci validates integrity hash
+package-lock.json -text
+
+# Binary files — keep as-is
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary
+*.otf binary
+
+# Shell scripts must stay LF
+*.sh text eol=lf
