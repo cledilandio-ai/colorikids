@@ -440,6 +440,19 @@ npx vitest run
 - [x] OpenAPI/Swagger — documentação de 47 rotas
 - [x] README — documentação do projeto
 - [x] Commit oficial — `b8eef534` (67 arquivos, +6.227 linhas)
+- [x] Estabilização do CI — Node 24 LTS + .gitattributes + lockfile v3 (`6ca29e55`)
+
+---
+
+## 🚀 ESTABILIZAÇÃO DA PIPELINE CI/CD (GitHub Actions)
+
+| Item | Alteração | Impacto |
+|------|-----------|---------|
+| **Node.js 24 LTS** | Atualizado no workflow `.github/workflows/ci.yml` | Alinhamento com o ambiente de desenvolvimento local |
+| **.gitattributes** | Criado com regras `* text=auto eol=lf` | Fim dos problemas de LF/CRLF entre Windows e Linux |
+| **Lockfile v3** | Regenerado do zero em ambiente isolado | Sincronia total entre `package.json` e `package-lock.json` |
+| **Instalação CI** | Ajustado para `npm install --frozen-lockfile` | Maior velocidade e estabilidade na execução |
+| **Eventos CI** | Removido gatilho duplicado de `pull_request` | Evita execuções redutantes nos pushes diretos na `main` |
 
 ---
 
@@ -448,8 +461,7 @@ npx vitest run
 | Prioridade | Tarefa | Esforço | Impacto |
 |:----------:|--------|:-------:|:-------:|
 | 🟢 Média | Branch protection no GitHub (Settings > Branches) | 10min | Segurança |
-| 🟢 Baixa | Testar `next build` completo (prisma generate + build) | 5min | Validação |
-| 🟢 Baixa | Push para o GitHub (`git push origin main`) | 1min | Deploy |
+| 🟢 Baixa | Testar `next build` completo em ambiente staging | 5min | Validação |
 
 ---
 
@@ -457,10 +469,10 @@ npx vitest run
 
 | Métrica | Valor |
 |---------|:-----:|
-| Arquivos criados | 14 |
-| Arquivos modificados | 67 |
-| Linhas inseridas | +6.227 |
-| Linhas removidas | -380 |
+| Arquivos criados | 15 (incluindo `.gitattributes`) |
+| Arquivos modificados | 68 |
+| Linhas inseridas | +6.250 |
+| Linhas removidas | -390 |
 | Testes unitários | 76 (50 Zod + 15 rate limiter + 11 integração) |
 | Schemas Zod | 11 |
 | Endpoints protegidos (rate limit) | 7 |
@@ -471,8 +483,10 @@ npx vitest run
 | Warnings de lint eliminados | 17 |
 | Vulnerabilidades críticas corrigidas | 2 (IDOR + JWT fallback) |
 | Bugs críticos corrigidos | 1 ($disconnect no singleton) |
+| Pipeline CI/CD | 100% Verde (Node 24 + Vitest + ESLint + TypeScript) |
 
 ---
 
-*Última atualização: 20/07/2026 — Commit `b8eef534`*
+*Última atualização: 21/07/2026 — Commit `6ca29e55`*
+
 
