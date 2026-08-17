@@ -1297,13 +1297,27 @@ export function NfeMatchModal({
 
                 {/* ── Footer ──────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between border-t p-4">
-                    {mode === "create" && (
+                    {mode === "create" ? (
                         <button
                             onClick={() => setMode("search")}
                             className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
                         >
                             ← Voltar para busca
                         </button>
+                    ) : item.matched ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onConfirm(item.nfeItemNumber, "", []);
+                                onClose();
+                            }}
+                            className="rounded-lg px-3 py-2 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors"
+                            title="Desfazer a associação deste item com o produto"
+                        >
+                            Desfazer Match Deste Item
+                        </button>
+                    ) : (
+                        <div />
                     )}
                     <div className="flex items-center gap-3 ml-auto">
                         <button

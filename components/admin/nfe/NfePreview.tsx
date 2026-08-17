@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Building2, Hash, Calendar, DollarSign, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { FileText, Building2, Hash, Calendar, DollarSign, CheckCircle2, AlertTriangle, XCircle, RotateCcw } from "lucide-react";
 import type { NfeItemPreview } from "./types";
 import { NfeItemRow } from "./NfeItemRow";
 
@@ -13,6 +13,8 @@ interface NfePreviewProps {
     items: NfeItemPreview[];
     onItemsChange: (items: NfeItemPreview[]) => void;
     onOpenMatchModal: (item: NfeItemPreview) => void;
+    onUnmatchItem?: (nfeItemNumber: number) => void;
+    onResetAllMatches?: () => void;
     onPrintItemLabel?: (item: NfeItemPreview) => void;
 }
 
@@ -25,6 +27,8 @@ export function NfePreview({
     items,
     onItemsChange,
     onOpenMatchModal,
+    onUnmatchItem,
+    onResetAllMatches,
     onPrintItemLabel,
 }: NfePreviewProps) {
     const totalMatched = items.filter((i) => i.matched && !i.ignore).length;
@@ -106,6 +110,17 @@ export function NfePreview({
                         {totalIgnored} ignorados
                     </span>
                 )}
+                {totalMatched > 0 && onResetAllMatches && (
+                    <button
+                        type="button"
+                        onClick={onResetAllMatches}
+                        className="ml-auto flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 shadow-sm"
+                        title="Desfazer a associação de todos os itens para refazer do início"
+                    >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Desfazer todos os matches
+                    </button>
+                )}
             </div>
 
             {/* Tabela de itens */}
@@ -155,6 +170,7 @@ export function NfePreview({
                                         );
                                     }}
                                     onOpenMatchModal={() => onOpenMatchModal(item)}
+                                    onUnmatch={(nfeItemNumber) => onUnmatchItem?.(nfeItemNumber)}
                                     onPrintItemLabel={onPrintItemLabel}
                                 />
                             ))}

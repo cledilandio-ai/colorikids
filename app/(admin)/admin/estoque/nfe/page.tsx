@@ -238,6 +238,43 @@ export default function NfeImportPage() {
         );
     }, []);
 
+    const handleUnmatchItem = useCallback((nfeItemNumber: number) => {
+        setItems((prev) =>
+            prev.map((i) => {
+                if (i.nfeItemNumber === nfeItemNumber) {
+                    return {
+                        ...i,
+                        matched: false,
+                        matchedBy: null,
+                        productId: null,
+                        variantId: null,
+                        productName: null,
+                        variantLabel: null,
+                        confidence: 0,
+                        isNewProduct: false,
+                    };
+                }
+                return i;
+            })
+        );
+    }, []);
+
+    const handleResetAllMatches = useCallback(() => {
+        setItems((prev) =>
+            prev.map((i) => ({
+                ...i,
+                matched: false,
+                matchedBy: null,
+                productId: null,
+                variantId: null,
+                productName: null,
+                variantLabel: null,
+                confidence: 0,
+                isNewProduct: false,
+            }))
+        );
+    }, []);
+
     const handleCreateProduct = useCallback(async (
         itemNumber: number,
         productData: {
@@ -442,6 +479,8 @@ export default function NfeImportPage() {
                             setMatchModalItem(item);
                             setMatchModalOpen(true);
                         }}
+                        onUnmatchItem={handleUnmatchItem}
+                        onResetAllMatches={handleResetAllMatches}
                         onPrintItemLabel={handlePrintItemLabel}
                     />
 

@@ -1,16 +1,17 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, XCircle, Search, EyeOff, Printer } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Search, EyeOff, Printer, RotateCcw } from "lucide-react";
 import type { NfeItemPreview } from "./types";
 
 interface NfeItemRowProps {
     item: NfeItemPreview;
     onToggleIgnore: (nfeItemNumber: number) => void;
     onOpenMatchModal: () => void;
+    onUnmatch?: (nfeItemNumber: number) => void;
     onPrintItemLabel?: (item: NfeItemPreview) => void;
 }
 
-export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onPrintItemLabel }: NfeItemRowProps) {
+export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onUnmatch, onPrintItemLabel }: NfeItemRowProps) {
     const isIgnored = item.ignore;
 
     const matchBadge = () => {
@@ -41,6 +42,15 @@ export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onPrintItem
             );
         }
 
+        if (item.matched) {
+            return (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Manual
+                </span>
+            );
+        }
+
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
                 <XCircle className="h-3 w-3" />
@@ -60,7 +70,7 @@ export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onPrintItem
             <td className="max-w-xs truncate px-4 py-3 text-sm text-gray-700">
                 <span title={item.description}>{item.description}</span>
                 {item.productName && (
-                    <div className="mt-0.5 text-xs text-green-600">
+                    <div className="mt-0.5 text-xs text-green-600 font-medium">
                         → {item.productName} {item.variantLabel && `(${item.variantLabel})`}
                     </div>
                 )}
@@ -88,13 +98,22 @@ export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onPrintItem
                             <Printer className="h-4 w-4" />
                         </button>
                     )}
-                    {!item.matched && !isIgnored && (
+                    {!isIgnored && (
                         <button
                             onClick={onOpenMatchModal}
                             className="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50 transition-colors"
-                            title="Buscar produto manualmente"
+                            title={item.matched ? "Alterar associação ou criar produto" : "Buscar produto manualmente"}
                         >
                             <Search className="h-4 w-4" />
+                        </button>
+                    )}
+                    {item.matched && !isIgnored && onUnmatch && (
+                        <button
+                            onClick={() => onUnmatch(item.nfeItemNumber)}
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Desfazer associação deste item"
+                        >
+                            <RotateCcw className="h-4 w-4" />
                         </button>
                     )}
                     <button
