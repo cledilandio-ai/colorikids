@@ -13,6 +13,7 @@ interface NfePreviewProps {
     items: NfeItemPreview[];
     onItemsChange: (items: NfeItemPreview[]) => void;
     onOpenMatchModal: (item: NfeItemPreview) => void;
+    onPrintItemLabel?: (item: NfeItemPreview) => void;
 }
 
 export function NfePreview({
@@ -24,6 +25,7 @@ export function NfePreview({
     items,
     onItemsChange,
     onOpenMatchModal,
+    onPrintItemLabel,
 }: NfePreviewProps) {
     const totalMatched = items.filter((i) => i.matched && !i.ignore).length;
     const totalIgnored = items.filter((i) => i.ignore).length;
@@ -153,6 +155,7 @@ export function NfePreview({
                                         );
                                     }}
                                     onOpenMatchModal={() => onOpenMatchModal(item)}
+                                    onPrintItemLabel={onPrintItemLabel}
                                 />
                             ))}
                         </tbody>

@@ -1,15 +1,16 @@
 "use client";
 
-import { Edit, Trash } from "lucide-react";
+import { Edit, Trash, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 interface ProductActionsProps {
     productId: string;
+    onPrint?: () => void;
 }
 
-export function ProductActions({ productId }: ProductActionsProps) {
+export function ProductActions({ productId, onPrint }: ProductActionsProps) {
     const router = useRouter();
 
     const handleDelete = async () => {
@@ -33,6 +34,17 @@ export function ProductActions({ productId }: ProductActionsProps) {
 
     return (
         <div className="flex gap-2">
+            {onPrint && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-pink-600 hover:bg-pink-50"
+                    onClick={onPrint}
+                    title="Imprimir etiquetas deste produto"
+                >
+                    <Printer className="h-4 w-4" />
+                </Button>
+            )}
             <Link href={`/products/${productId}/edit`}>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
                     <Edit className="h-4 w-4 text-blue-600" />

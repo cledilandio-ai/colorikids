@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, X, Check, Package, PlusCircle, Loader2, ImagePlus, Trash2, ArrowLeft, Plus } from "lucide-react";
+import { Search, X, Check, Package, PlusCircle, Loader2, ImagePlus, Trash2, ArrowLeft, Plus, ArrowUpDown } from "lucide-react";
+import { CategoryInput } from "@/components/admin/CategoryInput";
 import type { NfeItemPreview, VariantInput } from "./types";
 
 interface MatchedProduct {
@@ -22,19 +23,25 @@ interface NfeMatchModalProps {
     item: NfeItemPreview | null;
     products: MatchedProduct[];
     allNfeItems?: NfeItemPreview[];
+    supplierName?: string;
     onConfirm: (
         itemNumber: number,
         productId: string,
-        allocations: Array<{ variantId: string; quantity: number; isNewProduct?: boolean }>
+        allocations: Array<{ variantId: string; quantity: number; isNewProduct?: boolean; variantLabel?: string }>,
+        createdProduct?: MatchedProduct
     ) => void;
     onCreateProduct?: (itemNumber: number, productData: {
         name: string;
         sku: string;
         price: number;
         cost: number;
+        category?: string;
+        gender?: string;
+        supplier?: string;
+        description?: string;
         imageUrl?: string;
         variants: VariantInput[];
-    }) => Promise<{ productId: string; variantIds: string[] } | null>;
+    }) => Promise<{ productId: string; variantIds: string[]; createdProduct?: MatchedProduct } | null>;
     onUpdateProductVariants?: (productId: string, newVariants: MatchedProduct["variants"]) => void;
 }
 
@@ -46,6 +53,7 @@ export function NfeMatchModal({
     item,
     products,
     allNfeItems = [],
+    supplierName = "",
     onConfirm,
     onCreateProduct,
     onUpdateProductVariants
@@ -65,9 +73,18 @@ export function NfeMatchModal({
     const [newSku, setNewSku] = useState("");
     const [newPrice, setNewPrice] = useState("");
     const [newCost, setNewCost] = useState("");
+    const [newCategory, setNewCategory] = useState("");
+    const [newGender, setNewGender] = useState("");
+    const [newSupplier, setNewSupplier] = useState("");
+    const [newDescription, setNewDescription] = useState("");
+    const [nameWarning, setNameWarning] = useState("");
+    const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // ─── Variantes dinâmicas (Modo Criar Produto) ───────────────────────────
-    const [variants, setVariants] = useState<VariantInput[]>([{ size: "U", color: "", quantity: 1 }]);
+    const [variants, setVariants] = useState<VariantInput[]>([{ size: "U", color: "", quantity: 1, minStock: 1 }]);
+    // ─── Upload de imagem individual por variante ─────────────────────────
+    const [variantImageFiles, setVariantImageFiles] = useState<(File | null)[]>([null]);
+    const [variantImagePreviews, setVariantImagePreviews] = useState<(string | null)[]>([null]);
 
     // ─── Upload de imagem ──────────────────────────────────────────────────
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -91,12 +108,43 @@ export function NfeMatchModal({
     const qtyValid = distributedQty <= totalNfeQty;
     const qtyExact = distributedQty === totalNfeQty;
 
+    // ─── Check name duplication in real time ─────────────────────────────
+    const handleNameChange = (val: string) => {
+        setNewName(val);
+        if (typingTimeout) clearTimeout(typingTimeout);
+
+        if (val.length > 2) {
+            const timeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/products?search=${encodeURIComponent(val)}`);
+                    if (res.ok) {
+                        const prods = await res.json();
+                        const exists = prods.some((p: any) => p.name.trim().toLowerCase() === val.trim().toLowerCase());
+                        if (exists) {
+                            setNameWarning("⚠️ Já existe um produto com este nome.");
+                        } else if (prods.length > 0) {
+                            setNameWarning(`ℹ️ ${prods.length} produto(s) similar(es) encontrado(s) (ex: ${prods[0].name}).`);
+                        } else {
+                            setNameWarning("");
+                        }
+                    }
+                } catch (e) {
+                    console.error("Erro ao verificar nome", e);
+                }
+            }, 500);
+            setTypingTimeout(timeout);
+        } else {
+            setNameWarning("");
+        }
+    };
+
     // ─── Reset state when modal opens ──────────────────────────────────────
     useEffect(() => {
         if (isOpen && item) {
             setMode("search");
             setSearchTerm("");
             setCreateError(null);
+            setNameWarning("");
             setNewVariantSize("");
             setNewVariantColor("");
 
@@ -124,18 +172,25 @@ export function NfeMatchModal({
             setNewSku(item.nfeCode || "");
             setNewPrice(item.unitValue ? item.unitValue.toFixed(2) : "");
             setNewCost(item.unitValue ? item.unitValue.toFixed(2) : "");
-            setVariants([{ size: "U", color: "", quantity: totalQty || 1 }]);
+            setNewCategory("");
+            setNewGender("");
+            setNewSupplier(supplierName || "");
+            setNewDescription(item.description || "");
+            setVariants([{ size: "U", color: "", quantity: totalQty || 1, minStock: 1 }]);
+            setVariantImageFiles([null]);
+            setVariantImagePreviews([null]);
             setImageFile(null);
             setImagePreview(null);
         }
-    }, [isOpen, item, allNfeItems]);
+    }, [isOpen, item, allNfeItems, supplierName]);
 
-    // ─── Cleanup image preview ─────────────────────────────────────────────
+    // ─── Cleanup image previews ────────────────────────────────────────────
     useEffect(() => {
         return () => {
             if (imagePreview) URL.revokeObjectURL(imagePreview);
+            variantImagePreviews.forEach(p => { if (p) URL.revokeObjectURL(p); });
         };
-    }, [imagePreview]);
+    }, [imagePreview, variantImagePreviews]);
 
     if (!isOpen || !item) return null;
 
@@ -294,21 +349,111 @@ export function NfeMatchModal({
         setImagePreview(null);
     };
 
+    // ─── Upload de imagem por variante individual ──────────────────────────
+    const handleVariantImageSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith("image/")) { setCreateError("Apenas imagens são permitidas."); return; }
+        if (file.size > 5 * 1024 * 1024) { setCreateError("Imagem muito grande. Máximo 5MB."); return; }
+
+        const preview = URL.createObjectURL(file);
+        const currentColor = variants[index]?.color || "";
+
+        // Selecionar foto: sincroniza com todas variantes da mesma cor
+        setVariantImageFiles((prev) => {
+            const next = [...prev];
+            next[index] = file;
+            if (currentColor) variants.forEach((v, i) => { if (i !== index && v.color === currentColor) next[i] = file; });
+            return next;
+        });
+        setVariantImagePreviews((prev) => {
+            const next = [...prev];
+            if (next[index]) URL.revokeObjectURL(next[index]!);
+            next[index] = preview;
+            if (currentColor) variants.forEach((v, i) => { if (i !== index && v.color === currentColor) next[i] = preview; });
+            return next;
+        });
+        setCreateError(null);
+    };
+
+    const handleVariantImageRemove = (index: number) => {
+        setVariantImageFiles((prev) => { const next = [...prev]; next[index] = null; return next; });
+        setVariantImagePreviews((prev) => {
+            const next = [...prev];
+            if (next[index]) URL.revokeObjectURL(next[index]!);
+            next[index] = null;
+            return next;
+        });
+    };
+
     // ─── Create Product Handlers ───────────────────────────────────────────
     const addVariant = () => {
         const nextQty = remainingQty > 0 ? remainingQty : 0;
-        setVariants((prev) => [...prev, { size: "", color: "", quantity: nextQty }]);
+        setVariants((prev) => [...prev, { size: "", color: "", quantity: nextQty, minStock: 1 }]);
+        setVariantImageFiles((prev) => [...prev, null]);
+        setVariantImagePreviews((prev) => [...prev, null]);
     };
 
     const removeVariant = (index: number) => {
         if (variants.length <= 1) return;
         setVariants((prev) => prev.filter((_, i) => i !== index));
+        setVariantImageFiles((prev) => prev.filter((_, i) => i !== index));
+        setVariantImagePreviews((prev) => {
+            const removed = prev[index];
+            if (removed) URL.revokeObjectURL(removed);
+            return prev.filter((_, i) => i !== index);
+        });
     };
 
     const updateVariant = (index: number, field: keyof VariantInput, value: string | number) => {
-        setVariants((prev) =>
-            prev.map((v, i) => (i === index ? { ...v, [field]: value } : v))
-        );
+        setVariants((prev) => {
+            const newVariants = [...prev];
+            newVariants[index] = { ...newVariants[index], [field]: value };
+
+            // Auto-preenchimento de imagem: Se já existir outra variante da mesma cor com foto, copia.
+            if (field === "color" && typeof value === "string") {
+                const existingVariantWithColor = prev.find((v, i) => i !== index && v.color === value && v.imageUrl);
+                if (existingVariantWithColor) {
+                    newVariants[index].imageUrl = existingVariantWithColor.imageUrl;
+                }
+            }
+
+            // Sincronização de Imagem: Se a foto mudar, atualiza todas as variantes da mesma cor
+            if (field === "imageUrl" && typeof value === "string") {
+                newVariants.forEach((v, i) => {
+                    if (v.color === newVariants[index].color && i !== index) {
+                        v.imageUrl = value;
+                    }
+                });
+            }
+
+            return newVariants;
+        });
+    };
+
+    const sortVariants = () => {
+        // Ordena variantes e sincroniza os arrays de imagem com a nova ordem
+        const sorted = [...variants].sort((a, b) => {
+            const colorCompare = (a.color || "").localeCompare(b.color || "");
+            if (colorCompare !== 0) return colorCompare;
+            const sizeA = parseInt((a.size || "").replace(/\D/g, '')) || 0;
+            const sizeB = parseInt((b.size || "").replace(/\D/g, '')) || 0;
+            return sizeA - sizeB;
+        });
+        const sortedIndices = sorted.map(sv => variants.indexOf(sv));
+        setVariants(sorted);
+        setVariantImageFiles(prev => sortedIndices.map(i => prev[i] ?? null));
+        setVariantImagePreviews(prev => sortedIndices.map(i => prev[i] ?? null));
+    };
+
+    const hasDuplicateVariants = () => {
+        const seen = new Set();
+        for (const v of variants) {
+            const key = `${v.size || ''}-${v.color || 'unica'}`.toLowerCase().trim();
+            if (seen.has(key)) return true;
+            seen.add(key);
+        }
+        return false;
     };
 
     const insertCommonSize = (size: string) => {
@@ -318,7 +463,9 @@ export function NfeMatchModal({
             updateVariant(emptyIdx, "size", formattedSize);
         } else {
             const nextQty = remainingQty > 0 ? remainingQty : 0;
-            setVariants((prev) => [...prev, { size: formattedSize, color: "", quantity: nextQty }]);
+            setVariants((prev) => [...prev, { size: formattedSize, color: "", quantity: nextQty, minStock: 1 }]);
+            setVariantImageFiles((prev) => [...prev, null]);
+            setVariantImagePreviews((prev) => [...prev, null]);
         }
     };
 
@@ -337,12 +484,26 @@ export function NfeMatchModal({
 
     const handleCreateProduct = async () => {
         if (!onCreateProduct || !item) return;
+
+        if (hasDuplicateVariants()) {
+            setCreateError("Existem variantes duplicadas (mesmo tamanho e cor). Corrija antes de criar.");
+            return;
+        }
+
+        const priceNum = parseFloat(newPrice) || 0;
+        const costNum = parseFloat(newCost) || 0;
+        if (priceNum > 0 && costNum > 0 && priceNum < costNum) {
+            setCreateError("O preço de venda não pode ser menor que o preço de custo.");
+            return;
+        }
+
         setCreating(true);
         setCreateError(null);
 
         try {
             let imageUrl = "";
 
+            // Upload da imagem principal do produto
             if (imageFile) {
                 const formData = new FormData();
                 formData.append("file", imageFile);
@@ -361,16 +522,36 @@ export function NfeMatchModal({
                 imageUrl = uploadData.url || "";
             }
 
+            // Upload das imagens individuais de cada variante
+            const variantUploadedUrls: (string | undefined)[] = await Promise.all(
+                variantImageFiles.map(async (file) => {
+                    if (!file) return undefined;
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const res = await fetch("/api/upload?type=product", { method: "POST", body: fd });
+                    if (!res.ok) return undefined;
+                    const data = await res.json();
+                    return (data.url as string | undefined) || undefined;
+                })
+            );
+
             const result = await onCreateProduct(item.nfeItemNumber, {
                 name: newName,
                 sku: newSku,
-                price: parseFloat(newPrice) || 0,
-                cost: parseFloat(newCost) || 0,
+                price: priceNum,
+                cost: costNum,
+                category: newCategory,
+                gender: newGender,
+                supplier: newSupplier,
+                description: newDescription,
                 imageUrl,
-                variants: variants.map((v) => ({
+                variants: variants.map((v, idx) => ({
                     size: v.size || "U",
                     color: v.color,
                     quantity: v.quantity || 0,
+                    minStock: v.minStock || 1,
+                    sku: v.sku?.trim() || undefined,
+                    imageUrl: variantUploadedUrls[idx],
                 })),
             });
 
@@ -379,8 +560,9 @@ export function NfeMatchModal({
                     variantId,
                     quantity: variants[idx]?.quantity || 0,
                     isNewProduct: true,
+                    variantLabel: `${variants[idx]?.size || 'U'}${variants[idx]?.color ? ' - ' + variants[idx].color : ''}`,
                 }));
-                onConfirm(item.nfeItemNumber, result.productId, activeAllocations);
+                onConfirm(item.nfeItemNumber, result.productId, activeAllocations, result.createdProduct);
                 onClose();
             }
         } catch (err) {
@@ -702,6 +884,12 @@ export function NfeMatchModal({
                     ) : (
                         /* ===== MODO CRIAR NOVO PRODUTO ===== */
                         <div className="space-y-6">
+                            {createError && (
+                                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center justify-between">
+                                    <span>⚠️ {createError}</span>
+                                    <button onClick={() => setCreateError(null)} className="text-red-400 hover:text-red-600 font-bold ml-2">×</button>
+                                </div>
+                            )}
                             <p className="text-sm text-gray-500">
                                 Os campos abaixo foram pré-preenchidos com os dados da NF-e. Ajuste se necessário.
                             </p>
@@ -712,11 +900,12 @@ export function NfeMatchModal({
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto *</label>
                                     <input
                                         type="text"
-                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+                                        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${nameWarning ? "border-amber-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500" : "border-gray-300 focus:border-pink-500 focus:ring-1 focus:ring-pink-500"}`}
                                         value={newName}
-                                        onChange={(e) => setNewName(e.target.value)}
+                                        onChange={(e) => handleNameChange(e.target.value)}
                                         placeholder="Nome do produto"
                                     />
+                                    {nameWarning && <p className="mt-1 text-xs text-amber-600 font-medium">{nameWarning}</p>}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">SKU (código)</label>
@@ -726,6 +915,55 @@ export function NfeMatchModal({
                                         value={newSku}
                                         onChange={(e) => setNewSku(e.target.value)}
                                         placeholder="Código do produto"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ── Categoria + Gênero ────────────────────── */}
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                                    <CategoryInput
+                                        value={newCategory}
+                                        onChange={(val) => setNewCategory(val)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Gênero</label>
+                                    <select
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-pink-500 focus:ring-pink-500"
+                                        value={newGender}
+                                        onChange={(e) => setNewGender(e.target.value)}
+                                    >
+                                        <option value="">Selecione o gênero...</option>
+                                        <option value="Infantil">Infantil</option>
+                                        <option value="Feminino">Feminino</option>
+                                        <option value="Masculino">Masculino</option>
+                                        <option value="Unissex">Unissex</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* ── Fornecedor + Descrição ───────────────── */}
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+                                    <input
+                                        type="text"
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+                                        value={newSupplier}
+                                        onChange={(e) => setNewSupplier(e.target.value.toUpperCase())}
+                                        placeholder="Ex: ABRANGE"
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                                    <textarea
+                                        rows={2}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-pink-500 focus:ring-pink-500"
+                                        value={newDescription}
+                                        onChange={(e) => setNewDescription(e.target.value)}
+                                        placeholder="Detalhes ou observações do produto..."
                                     />
                                 </div>
                             </div>
@@ -742,6 +980,9 @@ export function NfeMatchModal({
                                         value={newPrice}
                                         onChange={(e) => setNewPrice(e.target.value)}
                                     />
+                                    {parseFloat(newPrice) > 0 && parseFloat(newCost) > 0 && parseFloat(newPrice) < parseFloat(newCost) && (
+                                        <p className="text-xs text-amber-600 mt-1 font-medium">⚠️ Preço de venda menor que o custo.</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Custo (R$) *</label>
@@ -785,84 +1026,165 @@ export function NfeMatchModal({
                                     />
                                 </div>
 
-                                {/* Tamanhos comuns (quick-add) */}
-                                <div className="mb-4">
-                                    <p className="text-xs text-gray-500 mb-1.5">Tamanhos rápidos:</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {COMMON_SIZES.map((size) => (
-                                            <button
-                                                key={size}
-                                                type="button"
-                                                onClick={() => insertCommonSize(size)}
-                                                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-pink-300 hover:text-pink-600 hover:bg-pink-50"
-                                            >
-                                                {size}
-                                            </button>
-                                        ))}
+                                {/* Tamanhos comuns (quick-add) & Ordenar */}
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-1.5">Tamanhos rápidos:</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {COMMON_SIZES.map((size) => (
+                                                <button
+                                                    key={size}
+                                                    type="button"
+                                                    onClick={() => insertCommonSize(size)}
+                                                    className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-pink-300 hover:text-pink-600 hover:bg-pink-50"
+                                                >
+                                                    {size}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {variants.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={sortVariants}
+                                            className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-pink-600 bg-white border rounded-md px-2.5 py-1 transition-colors shadow-sm"
+                                            title="Ordenar por Cor e Tamanho"
+                                        >
+                                            <ArrowUpDown className="h-3.5 w-3.5" />
+                                            Ordenar
+                                        </button>
+                                    )}
                                 </div>
 
-                                {/* Tabela de variantes */}
-                                <div className="space-y-2">
+                                {/* Cards de variante — paridade com tela de cadastro manual */}
+                                <div className="space-y-3">
                                     {variants.map((variant, index) => (
                                         <div
                                             key={index}
-                                            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2.5"
+                                            className="rounded-xl border border-gray-200 bg-white p-3 space-y-2.5"
                                         >
-                                            <span className="w-5 text-center text-xs font-medium text-gray-400">
-                                                {index + 1}
-                                            </span>
+                                            {/* ── Linha 1: Índice + Tamanho | Cor | Qtd | Remover ── */}
+                                            <div className="flex items-end gap-2">
+                                                <span className="w-5 flex-shrink-0 text-center text-xs font-medium text-gray-400 pb-2">
+                                                    {index + 1}
+                                                </span>
 
-                                            {/* Size */}
-                                            <div className="flex-1">
-                                                <input
-                                                    type="text"
-                                                    value={variant.size}
-                                                    onChange={(e) => updateVariant(index, "size", e.target.value)}
-                                                    onBlur={(e) => {
-                                                        const val = e.target.value.trim();
-                                                        if (/^\d+$/.test(val)) {
-                                                            updateVariant(index, "size", `${val} Anos`);
-                                                        }
-                                                    }}
-                                                    placeholder="Tam (ex: 2)"
-                                                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm focus:border-pink-500 focus:ring-pink-500"
-                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Tamanho</label>
+                                                    <input
+                                                        type="text"
+                                                        value={variant.size}
+                                                        onChange={(e) => updateVariant(index, "size", e.target.value)}
+                                                        onBlur={(e) => {
+                                                            const val = e.target.value.trim();
+                                                            if (/^\d+$/.test(val)) updateVariant(index, "size", `${val} Anos`);
+                                                        }}
+                                                        placeholder="Ex: P, M, 2"
+                                                        className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                                    />
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Cor</label>
+                                                    <input
+                                                        type="text"
+                                                        value={variant.color}
+                                                        onChange={(e) => updateVariant(index, "color", e.target.value.toUpperCase())}
+                                                        placeholder="Ex: AZUL"
+                                                        className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                                    />
+                                                </div>
+
+                                                <div className="w-16 flex-shrink-0">
+                                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Qtd.</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max={totalNfeQty}
+                                                        value={variant.quantity}
+                                                        onChange={(e) => updateVariant(index, "quantity", parseInt(e.target.value) || 0)}
+                                                        className="w-full rounded-md border border-gray-200 px-1.5 py-1.5 text-sm text-center focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeVariant(index)}
+                                                    disabled={variants.length <= 1}
+                                                    className="flex-shrink-0 rounded-md p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-20 disabled:cursor-not-allowed mb-0.5"
+                                                    title="Remover variante"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
                                             </div>
 
-                                            {/* Color */}
-                                            <div className="flex-1">
-                                                <input
-                                                    type="text"
-                                                    value={variant.color}
-                                                    onChange={(e) => updateVariant(index, "color", e.target.value.toUpperCase())}
-                                                    placeholder="Cor (ex: ROSA)"
-                                                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm focus:border-pink-500 focus:ring-pink-500"
-                                                />
+                                            {/* ── Linha 2: Mínimo | SKU ── */}
+                                            <div className="ml-7 grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">Mínimo</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={variant.minStock ?? 1}
+                                                        onChange={(e) => updateVariant(index, "minStock", parseInt(e.target.value) || 1)}
+                                                        title="Estoque mínimo para alertas"
+                                                        className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-center focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-medium text-gray-500 mb-0.5">SKU</label>
+                                                    <input
+                                                        type="text"
+                                                        value={variant.sku || ""}
+                                                        onChange={(e) => updateVariant(index, "sku", e.target.value.toUpperCase())}
+                                                        placeholder="Auto"
+                                                        title="Deixe em branco para geração automática"
+                                                        className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm font-mono focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+                                                    />
+                                                </div>
                                             </div>
 
-                                            {/* Quantity */}
-                                            <div className="w-20">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max={totalNfeQty}
-                                                    value={variant.quantity}
-                                                    onChange={(e) => updateVariant(index, "quantity", parseInt(e.target.value) || 0)}
-                                                    className="w-full rounded-md border border-gray-200 px-2.5 py-1.5 text-sm text-center focus:border-pink-500 focus:ring-pink-500"
-                                                />
+                                            {/* ── Linha 3: Foto individual da variante ── */}
+                                            <div className="ml-7">
+                                                <label className="block text-[10px] font-medium text-gray-500 mb-1">Foto</label>
+                                                <div className="flex items-center gap-2">
+                                                    {variantImagePreviews[index] ? (
+                                                        <>
+                                                            <div className="relative h-11 w-11 overflow-hidden rounded-lg border border-gray-200 bg-white flex-shrink-0">
+                                                                <img
+                                                                    src={variantImagePreviews[index]!}
+                                                                    alt="Preview"
+                                                                    className="h-full w-full object-cover"
+                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleVariantImageRemove(index)}
+                                                                className="rounded-md p-1.5 text-red-400 transition-colors hover:bg-red-50"
+                                                                title="Remover foto"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <div className="relative inline-flex">
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                                                                onChange={(e) => handleVariantImageSelect(index, e)}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                className="flex h-11 w-11 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-pink-300 hover:text-pink-500 transition-colors"
+                                                            >
+                                                                <Plus className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-
-                                            {/* Remove */}
-                                            <button
-                                                type="button"
-                                                onClick={() => removeVariant(index)}
-                                                disabled={variants.length <= 1}
-                                                className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title="Remover variante"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -890,6 +1212,11 @@ export function NfeMatchModal({
                                 </div>
 
                                 {/* Warning */}
+                                {hasDuplicateVariants() && (
+                                    <p className="mt-2 text-xs text-red-500 font-medium">
+                                        ⚠️ Existem variantes duplicadas (mesmo tamanho e cor).
+                                    </p>
+                                )}
                                 {!qtyValid && (
                                     <p className="mt-2 text-xs text-red-500">
                                         ⚠️ A soma das quantidades ({distributedQty}) excede o total da NF-e ({totalNfeQty}).

@@ -2,6 +2,9 @@ export interface VariantInput {
     size: string;
     color: string;
     quantity: number;
+    minStock?: number;
+    sku?: string;
+    imageUrl?: string;
 }
 
 export interface NfeItemPreview {

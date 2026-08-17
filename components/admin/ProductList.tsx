@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Tag, FileText } from "lucide-react";
+import { Plus, Search, Tag, FileText, Printer, CheckSquare, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductActions } from "@/components/admin/ProductActions";
+import { LabelPrinterModal, type LabelItem } from "@/components/admin/labels/LabelPrinterModal";
 
 interface Variant {
     id: string;
     size: string;
+    color?: string | null;
     sku: string | null;
     stockQuantity: number;
 }
@@ -56,8 +58,65 @@ function matchesSearch(product: Product, term: string): boolean {
 
 export function ProductList({ initialProducts }: ProductListProps) {
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    // State do modal de etiquetas
+    const [printModalOpen, setPrintModalOpen] = useState(false);
+    const [printItems, setPrintItems] = useState<LabelItem[]>([]);
 
     const filteredProducts = initialProducts.filter(p => matchesSearch(p, searchTerm));
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredProducts.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredProducts.map(p => p.id));
+        }
+    };
+
+    const toggleSelectProduct = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    // Imprimir 1 produto (suas variantes)
+    const handlePrintSingleProduct = (product: Product) => {
+        const itemsToPrint: LabelItem[] = product.variants.map((v, idx) => ({
+            id: v.id,
+            sku: v.sku || `${product.name.substring(0, 3)}-${v.size}-${idx}`,
+            productName: product.name,
+            size: v.size,
+            color: v.color || null,
+            price: product.basePrice,
+            quantity: Math.max(1, v.stockQuantity)
+        }));
+        setPrintItems(itemsToPrint);
+        setPrintModalOpen(true);
+    };
+
+    // Imprimir lote selecionado
+    const handlePrintBatch = () => {
+        const selectedProducts = initialProducts.filter(p => selectedIds.includes(p.id));
+        const itemsToPrint: LabelItem[] = [];
+
+        selectedProducts.forEach(product => {
+            product.variants.forEach((v, idx) => {
+                itemsToPrint.push({
+                    id: v.id,
+                    sku: v.sku || `${product.name.substring(0, 3)}-${v.size}-${idx}`,
+                    productName: product.name,
+                    size: v.size,
+                    color: v.color || null,
+                    price: product.basePrice,
+                    quantity: Math.max(1, v.stockQuantity)
+                });
+            });
+        });
+
+        setPrintItems(itemsToPrint);
+        setPrintModalOpen(true);
+    };
 
     return (
         <div className="space-y-6">
@@ -105,12 +164,50 @@ export function ProductList({ initialProducts }: ProductListProps) {
                 </p>
             )}
 
+            {/* Barra Flutuante de Ação em Lote */}
+            {selectedIds.length > 0 && (
+                <div className="flex items-center justify-between rounded-xl border border-pink-200 bg-pink-50 px-4 py-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-pink-600 text-xs font-bold text-white">
+                            {selectedIds.length}
+                        </span>
+                        <span className="text-sm font-semibold text-pink-900">
+                            produto(s) selecionado(s)
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setSelectedIds([])}
+                            className="text-xs font-medium text-pink-700 hover:text-pink-900"
+                        >
+                            Desmarcar tudo
+                        </button>
+                        <Button
+                            onClick={handlePrintBatch}
+                            className="gap-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs shadow-sm"
+                        >
+                            <Printer className="h-4 w-4" />
+                            Imprimir Etiquetas em Lote
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Desktop Table */}
             <div className="hidden md:block rounded-xl border bg-white shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-gray-50 text-gray-500">
                             <tr>
+                                <th className="w-12 px-4 py-4 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={filteredProducts.length > 0 && selectedIds.length === filteredProducts.length}
+                                        onChange={toggleSelectAll}
+                                        className="rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                                    />
+                                </th>
                                 <th className="px-6 py-4 font-medium">Nome</th>
                                 <th className="px-4 py-4 font-medium">SKU</th>
                                 <th className="px-6 py-4 font-medium">Preço Base</th>
@@ -123,7 +220,7 @@ export function ProductList({ initialProducts }: ProductListProps) {
                         <tbody className="divide-y divide-gray-100">
                             {filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                                         {searchTerm
                                             ? <span>Nenhum produto encontrado para <strong>&quot;{searchTerm}&quot;</strong>.<br /><span className="text-xs">Tente buscar por nome, SKU, categoria ou fornecedor.</span></span>
                                             : "Nenhum produto cadastrado."
@@ -133,8 +230,18 @@ export function ProductList({ initialProducts }: ProductListProps) {
                             ) : (
                                 filteredProducts.map((product) => {
                                     const sku = getDisplaySku(product.variants, searchTerm);
+                                    const isSelected = selectedIds.includes(product.id);
+
                                     return (
-                                        <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                                        <tr key={product.id} className={`transition-colors ${isSelected ? "bg-pink-50/40" : "hover:bg-gray-50"}`}>
+                                            <td className="w-12 px-4 py-4 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => toggleSelectProduct(product.id)}
+                                                    className="rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 font-medium text-gray-900">
                                                 {product.name}
                                                 {product.category && (
@@ -163,7 +270,10 @@ export function ProductList({ initialProducts }: ProductListProps) {
                                                 {product.variants.length} tamanhos
                                             </td>
                                             <td className="px-6 py-4">
-                                                <ProductActions productId={product.id} />
+                                                <ProductActions
+                                                    productId={product.id}
+                                                    onPrint={() => handlePrintSingleProduct(product)}
+                                                />
                                             </td>
                                         </tr>
                                     );
@@ -183,11 +293,24 @@ export function ProductList({ initialProducts }: ProductListProps) {
                 ) : (
                     filteredProducts.map((product) => {
                         const sku = getDisplaySku(product.variants, searchTerm);
+                        const isSelected = selectedIds.includes(product.id);
+
                         return (
-                            <div key={product.id} className="bg-white rounded-xl shadow-sm border p-4">
+                            <div key={product.id} className={`bg-white rounded-xl shadow-sm border p-4 transition-all ${isSelected ? "border-pink-300 ring-1 ring-pink-300 bg-pink-50/20" : ""}`}>
                                 <div className="flex justify-between items-start mb-1">
-                                    <h3 className="font-bold text-gray-900 text-base leading-tight">{product.name}</h3>
-                                    <ProductActions productId={product.id} />
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleSelectProduct(product.id)}
+                                            className="rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+                                        />
+                                        <h3 className="font-bold text-gray-900 text-base leading-tight">{product.name}</h3>
+                                    </div>
+                                    <ProductActions
+                                        productId={product.id}
+                                        onPrint={() => handlePrintSingleProduct(product)}
+                                    />
                                 </div>
                                 {sku && (
                                     <span className="inline-flex items-center gap-1 mb-2 px-2 py-0.5 rounded bg-gray-100 text-gray-500 text-xs font-mono border border-gray-200">
@@ -219,6 +342,13 @@ export function ProductList({ initialProducts }: ProductListProps) {
                     })
                 )}
             </div>
+
+            {/* Modal de Impressão de Etiquetas */}
+            <LabelPrinterModal
+                isOpen={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
+                items={printItems}
+            />
         </div>
     );
 }

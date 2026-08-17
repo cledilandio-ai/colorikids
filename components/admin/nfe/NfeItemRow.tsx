@@ -1,15 +1,16 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, XCircle, Search, EyeOff } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Search, EyeOff, Printer } from "lucide-react";
 import type { NfeItemPreview } from "./types";
 
 interface NfeItemRowProps {
     item: NfeItemPreview;
     onToggleIgnore: (nfeItemNumber: number) => void;
     onOpenMatchModal: () => void;
+    onPrintItemLabel?: (item: NfeItemPreview) => void;
 }
 
-export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal }: NfeItemRowProps) {
+export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal, onPrintItemLabel }: NfeItemRowProps) {
     const isIgnored = item.ignore;
 
     const matchBadge = () => {
@@ -78,6 +79,15 @@ export function NfeItemRow({ item, onToggleIgnore, onOpenMatchModal }: NfeItemRo
             </td>
             <td className="whitespace-nowrap px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
+                    {item.matched && !isIgnored && onPrintItemLabel && (
+                        <button
+                            onClick={() => onPrintItemLabel(item)}
+                            className="rounded-lg p-1.5 text-pink-600 hover:bg-pink-50 transition-colors"
+                            title="Imprimir etiqueta deste item"
+                        >
+                            <Printer className="h-4 w-4" />
+                        </button>
+                    )}
                     {!item.matched && !isIgnored && (
                         <button
                             onClick={onOpenMatchModal}

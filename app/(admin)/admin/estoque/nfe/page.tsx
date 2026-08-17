@@ -9,6 +9,8 @@ import { NfeMatchModal } from "@/components/admin/nfe/NfeMatchModal";
 import { NfeConfirmButton } from "@/components/admin/nfe/NfeConfirmButton";
 import type { NfeItemPreview } from "@/components/admin/nfe/types";
 
+import { LabelPrinterModal, type LabelItem } from "@/components/admin/labels/LabelPrinterModal";
+
 interface MatchedProduct {
     id: string;
     name: string;
@@ -52,6 +54,10 @@ export default function NfeImportPage() {
     // Match modal state
     const [matchModalItem, setMatchModalItem] = useState<NfeItemPreview | null>(null);
     const [matchModalOpen, setMatchModalOpen] = useState(false);
+
+    // Label printer modal state
+    const [printModalOpen, setPrintModalOpen] = useState(false);
+    const [printItems, setPrintItems] = useState<LabelItem[]>([]);
 
     // Carregar produtos para match manual
     useEffect(() => {
@@ -166,7 +172,8 @@ export default function NfeImportPage() {
         (
             itemNumber: number,
             productId: string,
-            allocations: Array<{ variantId: string; quantity: number; isNewProduct?: boolean }>
+            allocations: Array<{ variantId: string; quantity: number; isNewProduct?: boolean; variantLabel?: string }>,
+            createdProduct?: MatchedProduct
         ) => {
             setItems((prev) => {
                 // Find one of the original items to copy its properties (unitValue, nfeCode, etc)
@@ -176,7 +183,7 @@ export default function NfeImportPage() {
                 // Remove all previous instances with this nfeItemNumber
                 const otherItems = prev.filter((item) => item.nfeItemNumber !== itemNumber);
 
-                const product = products.find((p) => p.id === productId);
+                const product = createdProduct || products.find((p) => p.id === productId);
 
                 // If allocations are empty, we keep one unassociated item row
                 if (allocations.length === 0) {
@@ -199,6 +206,10 @@ export default function NfeImportPage() {
                     const qty = alloc.quantity;
                     const totalVal = qty * originalItem.unitValue;
 
+                    const label = variant
+                        ? `${variant.size}${variant.color ? " - " + variant.color : ""}`
+                        : alloc.variantLabel || null;
+
                     return {
                         ...originalItem,
                         quantity: qty,
@@ -208,8 +219,8 @@ export default function NfeImportPage() {
                         productId,
                         variantId: alloc.variantId,
                         isNewProduct: alloc.isNewProduct || false,
-                        productName: product?.name || null,
-                        variantLabel: variant ? `${variant.size}${variant.color ? " - " + variant.color : ""}` : null,
+                        productName: product?.name || originalItem.description || null,
+                        variantLabel: label,
                         confidence: 1,
                         ignore: false,
                     };
@@ -234,26 +245,50 @@ export default function NfeImportPage() {
             sku: string;
             price: number;
             cost: number;
+            category?: string;
+            gender?: string;
+            supplier?: string;
+            description?: string;
             imageUrl?: string;
-            variants: Array<{ size: string; color: string; quantity: number }>;
+            variants: Array<{ size: string; color: string; quantity: number; minStock?: number; sku?: string; imageUrl?: string }>;
         }
-    ): Promise<{ productId: string; variantIds: string[] } | null> => {
+    ): Promise<{ productId: string; variantIds: string[]; createdProduct: MatchedProduct } | null> => {
         try {
             const res = await fetch("/api/products", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: productData.name,
+                    description: productData.description || undefined,
                     basePrice: productData.price,
                     costPrice: productData.cost,
+                    category: productData.category || undefined,
+                    gender: productData.gender || undefined,
+                    supplier: productData.supplier || nfeData?.supplier.name || undefined,
                     imageUrl: productData.imageUrl || undefined,
-                    supplier: nfeData?.supplier.name || "",
-                    variants: productData.variants.map((v) => ({
-                        size: v.size || "U",
-                        color: v.color || undefined,
-                        stockQuantity: v.quantity,
-                        sku: productData.sku || undefined,
-                    })),
+                    variants: productData.variants.map((v, idx) => {
+                        // Se o usuário preencheu um SKU individual na variante, usa-o diretamente
+                        let variantSku: string | undefined = v.sku?.trim() || undefined;
+                        // Caso contrário, gera automaticamente a partir do SKU base do produto
+                        if (!variantSku && productData.sku?.trim()) {
+                            const baseSku = productData.sku.trim().toUpperCase();
+                            if (productData.variants.length > 1) {
+                                const cleanSize = (v.size || "U").replace(/\s+/g, "").toUpperCase();
+                                const cleanColor = v.color?.trim() ? v.color.trim().substring(0, 3).toUpperCase() : `VAR${idx + 1}`;
+                                variantSku = `${baseSku}-${cleanColor}-${cleanSize}`;
+                            } else {
+                                variantSku = baseSku;
+                            }
+                        }
+                        return {
+                            size: v.size || "U",
+                            color: v.color || undefined,
+                            stockQuantity: v.quantity,
+                            minStock: v.minStock || 1,
+                            sku: variantSku,
+                            imageUrl: v.imageUrl || undefined,
+                        };
+                    }),
                 }),
             });
 
@@ -265,7 +300,7 @@ export default function NfeImportPage() {
             const newProduct = await res.json();
 
             // Adicionar o novo produto à lista local
-            const mappedProduct = {
+            const mappedProduct: MatchedProduct = {
                 id: newProduct.id,
                 name: newProduct.name,
                 variants: (newProduct.variants || []).map((v: any) => ({
@@ -284,12 +319,86 @@ export default function NfeImportPage() {
             return {
                 productId: mappedProduct.id,
                 variantIds,
+                createdProduct: mappedProduct,
             };
         } catch (err) {
             setError(err instanceof Error ? err.message : "Erro ao criar produto");
             return null;
         }
     }, [nfeData]);
+
+    // Função para gerar as etiquetas da NF-e inteira
+    const handlePrintNfeLabels = useCallback(() => {
+        const validItems = items.filter((i) => i.matched && !i.ignore);
+        const labels: LabelItem[] = validItems.map((item) => {
+            let variantSize = "U";
+            let variantColor: string | null = null;
+            let variantSku = item.nfeCode;
+
+            if (item.productId && item.variantId) {
+                const p = products.find((prod) => prod.id === item.productId);
+                const v = p?.variants.find((varItem) => varItem.id === item.variantId);
+                if (v) {
+                    variantSize = v.size;
+                    variantColor = v.color;
+                    if (v.sku) variantSku = v.sku;
+                }
+            }
+
+            if (item.variantLabel && variantSize === "U") {
+                const parts = item.variantLabel.split(" - ");
+                variantSize = parts[0] || "U";
+                if (parts[1]) variantColor = parts[1];
+            }
+
+            return {
+                id: item.variantId || `${item.nfeItemNumber}`,
+                sku: variantSku,
+                productName: item.productName || item.description,
+                size: variantSize,
+                color: variantColor,
+                price: item.unitValue,
+                quantity: Math.round(item.quantity)
+            };
+        });
+
+        setPrintItems(labels);
+        setPrintModalOpen(true);
+    }, [items, products]);
+
+    // Função para imprimir etiqueta de um item individual da NF-e
+    const handlePrintItemLabel = useCallback((item: NfeItemPreview) => {
+        let variantSize = "U";
+        let variantColor: string | null = null;
+        let variantSku = item.nfeCode;
+
+        if (item.productId && item.variantId) {
+            const p = products.find((prod) => prod.id === item.productId);
+            const v = p?.variants.find((varItem) => varItem.id === item.variantId);
+            if (v) {
+                variantSize = v.size;
+                variantColor = v.color;
+                if (v.sku) variantSku = v.sku;
+            }
+        }
+
+        if (item.variantLabel && variantSize === "U") {
+            const parts = item.variantLabel.split(" - ");
+            variantSize = parts[0] || "U";
+            if (parts[1]) variantColor = parts[1];
+        }
+
+        setPrintItems([{
+            id: item.variantId || `${item.nfeItemNumber}`,
+            sku: variantSku,
+            productName: item.productName || item.description,
+            size: variantSize,
+            color: variantColor,
+            price: item.unitValue,
+            quantity: Math.round(item.quantity)
+        }]);
+        setPrintModalOpen(true);
+    }, [products]);
 
     return (
         <div className="mx-auto max-w-5xl space-y-6 p-6">
@@ -302,46 +411,25 @@ export default function NfeImportPage() {
                 Voltar ao Dashboard de Estoque
             </Link>
 
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Entrada por XML NF-e</h1>
-                <p className="mt-1 text-gray-500">
-                    Faça upload do XML de uma Nota Fiscal Eletrônica para dar entrada automática no estoque.
-                </p>
-            </div>
-
-            {/* Error alert */}
+            {/* Error Banner */}
             {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0">
-                            <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-medium text-red-800">Erro ao processar</p>
-                            <p className="mt-1 text-sm text-red-600">{error}</p>
-                        </div>
-                        <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
-                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                        </button>
-                    </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    <p className="font-medium">⚠️ Erro</p>
+                    <p className="mt-1">{error}</p>
                 </div>
             )}
 
             {/* Step 1: Upload */}
             {step === "upload" && (
-                <div className="space-y-4">
-                    <NfeUploadZone onFileSelect={handleFileSelect} loading={loading} />
-                </div>
+                <NfeUploadZone
+                    onFileSelect={handleFileSelect}
+                    loading={loading}
+                />
             )}
 
-            {/* Step 2: Preview + Match */}
+            {/* Step 2: Preview & Match */}
             {step === "preview" && nfeData && (
-                <div className="space-y-6">
+                <>
                     <NfePreview
                         supplierName={nfeData.supplier.name}
                         supplierCnpj={nfeData.supplier.cnpj}
@@ -354,24 +442,17 @@ export default function NfeImportPage() {
                             setMatchModalItem(item);
                             setMatchModalOpen(true);
                         }}
+                        onPrintItemLabel={handlePrintItemLabel}
                     />
-
-                    <div className="flex items-center justify-between">
-                        <button
-                            onClick={() => setStep("upload")}
-                            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-                        >
-                            ← Voltar e escolher outro XML
-                        </button>
-                    </div>
 
                     <NfeConfirmButton
                         items={items}
                         totalValue={nfeData.totalValue}
                         onConfirm={handleConfirm}
                         disabled={loading}
+                        onPrintLabels={handlePrintNfeLabels}
                     />
-                </div>
+                </>
             )}
 
             {/* Step 3: Confirmed */}
@@ -385,6 +466,12 @@ export default function NfeImportPage() {
                         Os produtos foram adicionados ao estoque com sucesso.
                     </p>
                     <div className="mt-6 flex items-center justify-center gap-4">
+                        <button
+                            onClick={handlePrintNfeLabels}
+                            className="rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-pink-700 transition-colors shadow-sm"
+                        >
+                            🖨️ Imprimir Etiquetas da NF-e
+                        </button>
                         <Link
                             href="/admin/estoque/nfe"
                             className="rounded-lg bg-white px-6 py-2.5 text-sm font-medium text-green-700 border border-green-300 hover:bg-green-100 transition-colors"
@@ -407,10 +494,18 @@ export default function NfeImportPage() {
                 onClose={() => setMatchModalOpen(false)}
                 item={matchModalItem}
                 products={products}
+                supplierName={nfeData?.supplier.name || ""}
                 onConfirm={handleMatchConfirm}
                 onCreateProduct={handleCreateProduct}
                 onUpdateProductVariants={handleUpdateProductVariants}
                 allNfeItems={items}
+            />
+
+            {/* Modal de Impressão de Etiquetas */}
+            <LabelPrinterModal
+                isOpen={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
+                items={printItems}
             />
         </div>
     );

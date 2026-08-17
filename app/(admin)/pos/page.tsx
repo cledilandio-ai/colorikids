@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Search, Trash, CreditCard, Banknote, QrCode, X, User, Calendar, Copy, Check, Lock, Send, ShoppingCart } from "lucide-react";
+import { Search, Trash, CreditCard, Banknote, QrCode, X, User, Calendar, Copy, Check, Lock, Send, ShoppingCart, Camera } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useSettings } from "@/context/SettingsContext";
 import { generatePixPayload } from "@/lib/pix";
+import { CameraScannerModal } from "@/components/admin/pos/CameraScannerModal";
 
 interface Payment {
     method: string;
@@ -27,6 +28,9 @@ export default function POSPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { pixKey, companyName, whatsapp } = useSettings();
+
+    // Leitor de Câmera / QR Code
+    const [showCameraScanner, setShowCameraScanner] = useState(false);
 
     // Lista de produtos carregados do banco
     const [products, setProducts] = useState<any[]>([]);
@@ -328,6 +332,18 @@ export default function POSPage() {
         setSearch(""); // Limpa a busca após adicionar via SKU
 
         if (window.innerWidth < 1024) setShowPostAddAction(true);
+    };
+
+    const handleCameraScan = (code: string) => {
+        const lowerCode = code.trim().toLowerCase();
+        for (const p of products) {
+            const v = p.variants?.find((v: any) => v.sku?.toLowerCase() === lowerCode);
+            if (v) {
+                addToCartDirect(p, v);
+                return;
+            }
+        }
+        setSearch(code);
     };
 
     const addToCart = (variant: any) => {
@@ -675,10 +691,10 @@ export default function POSPage() {
 
             <div className="flex flex-col gap-6 lg:flex-1 lg:flex-row lg:overflow-hidden">
                 <div className="flex flex-col gap-4 lg:flex-1 lg:overflow-hidden">
-                    <div className="relative flex-shrink-0">
+                    <div className="relative flex-shrink-0 flex items-center">
                         <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 z-10" />
                         <input
-                            className={`w-full rounded-xl border p-3 pl-10 pr-4 text-lg focus:outline-none focus:ring-2 transition-colors ${
+                            className={`w-full rounded-xl border p-3 pl-10 pr-28 text-lg focus:outline-none focus:ring-2 transition-colors ${
                                 skuExactMatch
                                     ? "border-green-400 bg-green-50 focus:ring-green-400"
                                     : "border-gray-300 focus:ring-primary"
@@ -696,9 +712,18 @@ export default function POSPage() {
                             autoFocus
                             autoComplete="off"
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowCameraScanner(true)}
+                            className="absolute right-3 top-2.5 flex items-center gap-1.5 rounded-lg bg-pink-50 px-2.5 py-1.5 text-xs font-bold text-pink-700 border border-pink-200 hover:bg-pink-100 transition-colors shadow-sm z-10"
+                            title="Abrir leitor de QR Code / Câmera"
+                        >
+                            <Camera className="h-4 w-4 text-pink-600" />
+                            <span className="hidden sm:inline">Câmera QR</span>
+                        </button>
                         {search && (
                             <button
-                                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                                className="absolute right-28 top-3.5 text-gray-400 hover:text-gray-600 z-10"
                                 onMouseDown={(e) => { e.preventDefault(); setSearch(""); setShowSearchDropdown(false); }}
                             >
                                 <X className="h-5 w-5" />
@@ -1050,6 +1075,13 @@ export default function POSPage() {
                     </div>
                 </div>
             )}
+
+            {/* Modal de Leitura de Câmera / QR Code */}
+            <CameraScannerModal
+                isOpen={showCameraScanner}
+                onClose={() => setShowCameraScanner(false)}
+                onScan={handleCameraScan}
+            />
         </div>
     );
 }

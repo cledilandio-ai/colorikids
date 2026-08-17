@@ -9,9 +9,10 @@ interface NfeConfirmButtonProps {
     totalValue: number;
     onConfirm: () => Promise<void>;
     disabled?: boolean;
+    onPrintLabels?: () => void;
 }
 
-export function NfeConfirmButton({ items, totalValue, onConfirm, disabled }: NfeConfirmButtonProps) {
+export function NfeConfirmButton({ items, totalValue, onConfirm, disabled, onPrintLabels }: NfeConfirmButtonProps) {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -56,32 +57,47 @@ export function NfeConfirmButton({ items, totalValue, onConfirm, disabled }: Nfe
                     </div>
                 </div>
 
-                <button
-                    onClick={handleClick}
-                    disabled={loading || disabled || validItems.length === 0}
-                    className={`flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all ${
-                        success
-                            ? "bg-green-600"
-                            : "bg-pink-600 hover:bg-pink-700 active:scale-[0.98]"
-                    } disabled:cursor-not-allowed disabled:opacity-50`}
-                >
-                    {loading ? (
-                        <>
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                            Importando...
-                        </>
-                    ) : success ? (
-                        <>
-                            <CheckCircle2 className="h-5 w-5" />
-                            Importado com Sucesso!
-                        </>
-                    ) : (
-                        <>
-                            <PackageCheck className="h-5 w-5" />
-                            Confirmar Entrada no Estoque
-                        </>
+                <div className="flex items-center gap-3">
+                    {onPrintLabels && (
+                        <button
+                            type="button"
+                            onClick={onPrintLabels}
+                            disabled={validItems.length === 0}
+                            className="flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-3 text-sm font-bold text-pink-700 hover:bg-pink-100 transition-colors disabled:opacity-50"
+                            title="Imprimir etiquetas com QR Code de todos os produtos da NF-e"
+                        >
+                            <PackageCheck className="h-4 w-4 text-pink-600" />
+                            Imprimir Etiquetas da NF-e
+                        </button>
                     )}
-                </button>
+
+                    <button
+                        onClick={handleClick}
+                        disabled={loading || disabled || validItems.length === 0}
+                        className={`flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all ${
+                            success
+                                ? "bg-green-600"
+                                : "bg-pink-600 hover:bg-pink-700 active:scale-[0.98]"
+                        } disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                        {loading ? (
+                            <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Importando...
+                            </>
+                        ) : success ? (
+                            <>
+                                <CheckCircle2 className="h-5 w-5" />
+                                Importado com Sucesso!
+                            </>
+                        ) : (
+                            <>
+                                <PackageCheck className="h-5 w-5" />
+                                Confirmar Entrada no Estoque
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
         </div>
     );
